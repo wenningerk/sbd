@@ -26,5 +26,5 @@ srpm:	export
 	rm -f *.src.rpm
 	rpmbuild $(RPM_OPTS) -bs $(PACKAGE).spec
 
-rpm:	export srpm
-	rpmbuild $(RPM_OPTS) --rebuild $(RPM_ROOT)/*.src.rpm
+rpm:	export
+	rpmbuild $(RPM_OPTS) -ba $(PACKAGE).spec
