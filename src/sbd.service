@@ -8,9 +8,11 @@ RefuseManualStart=true
 
 [Service]
 Type=forking
-ExecStart=/usr/share/sbd/sbd.sh start
-ExecStop=/usr/share/sbd/sbd.sh stop
-PIDFile=/var/run/sbd.pid
+EnvironmentFile=-@sysconfdir@/sysconfig/sbd
+ExecStart=@sbindir@/sbd $SBD_OPTS watch
+ExecStop=kill -TERM $MAINPID
+PIDFile=${SBD_PIDFILE}
+
 # Could this benefit from exit codes for restart?
 # Does this need to be set to msgwait * 1.2?
 # TimeoutSec=
@@ -19,5 +21,5 @@ PIDFile=/var/run/sbd.pid
 Restart=on-abort
 
 [Install]
-RequiredBy=pacemaker.service
+RequiredBy=corosync.service
 

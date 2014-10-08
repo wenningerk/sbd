@@ -897,6 +897,32 @@ int messenger(const char *name, const char *msg, struct servants_list_item *serv
 	}
 }
 
+unsigned long
+get_first_msgwait(struct servants_list_item *servants) 
+{
+    unsigned long msgwait = 0;
+    struct servants_list_item *s = servants;
+
+    for (s = servants; s; s = s->next) {
+        struct sbd_context *st;
+        struct sector_header_s *s_header;
+        st = open_device(s->devname, LOG_WARNING);
+        if (!st) {
+            continue;
+        }
+
+        s_header = header_get(st);
+        if (s_header != NULL) {
+            msgwait = (unsigned long)s_header->timeout_msgwait;
+            close_device(st);
+            return msgwait;
+        }
+
+        close_device(st);
+    }
+    return msgwait;
+}
+
 int dump_headers(struct servants_list_item *servants)
 {
 	int rc = 0;

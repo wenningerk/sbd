@@ -392,6 +392,7 @@ void inquisitor_child(void)
 
 	sigemptyset(&procmask);
 	sigaddset(&procmask, SIGCHLD);
+	sigaddset(&procmask, SIGTERM);
 	sigaddset(&procmask, SIG_LIVENESS);
 	sigaddset(&procmask, SIG_EXITREQ);
 	sigaddset(&procmask, SIG_TEST);
@@ -415,7 +416,7 @@ void inquisitor_child(void)
 
 		clock_gettime(CLOCK_MONOTONIC, &t_now);
 
-		if (sig == SIG_EXITREQ) {
+		if (sig == SIG_EXITREQ || sig == SIGTERM) {
 			servants_kill();
 			watchdog_close(true);
 			exiting = 1;
@@ -628,12 +629,70 @@ int inquisitor(void)
 	return -1;
 }
 
+
+static int
+parse_device_line(const char *line)
+{
+    int lpc = 0;
+    int last = 0;
+    int max = 0;
+    int found = 0;
+
+    if(line) {
+        max = strlen(line);
+    }
+
+    if (max <= 0) {
+        return found;
+    }
+
+    crm_trace("Processing %d bytes: [%s]", max, line);
+    /* Skip initial whitespace */
+    for (lpc = 0; lpc <= max && isspace(line[lpc]); lpc++) {
+        last = lpc + 1;
+    }
+
+    /* Now the actual content */
+    for (lpc = 0; lpc <= max; lpc++) {
+        int a_space = isspace(line[lpc]);
+
+        if (a_space && lpc < max && isspace(line[lpc + 1])) {
+            /* fast-forward to the end of the spaces */
+
+        } else if (a_space || line[lpc] == ';' || line[lpc] == 0) {
+            int rc = 1;
+            char *entry = NULL;
+
+            if (lpc != last) {
+                entry = calloc(1, 1 + lpc - last);
+                rc = sscanf(line + last, "%[^;]", entry);
+            }
+
+            if (entry == NULL) {
+                /* Skip */
+            } else if (rc != 1) {
+                crm_warn("Could not parse (%d %d): %s", last, lpc, line + last);
+            } else {
+                crm_trace("Adding '%s'", entry);
+                recruit_servant(entry, 0);
+                found++;
+            }
+
+            free(entry);
+            last = lpc + 1;
+        }
+    }
+    return found;
+}
+
 int main(int argc, char **argv, char **envp)
 {
 	int exit_status = 0;
 	int c;
 	int w = 0;
         int qb_facility;
+        const char *value = NULL;
+        int start_delay = 0;
 
 	if ((cmdname = strrchr(argv[0], '/')) == NULL) {
 		cmdname = argv[0];
@@ -648,6 +707,49 @@ int main(int argc, char **argv, char **envp)
         qb_log_ctl(QB_LOG_STDERR, QB_LOG_CONF_ENABLED, QB_FALSE);
 
 	sbd_get_uname();
+
+        value = getenv("SBD_DEVICE");
+        if(value) {
+#if SUPPORT_SHARED_DISK
+            int devices = parse_device_line(value);
+            if(devices > 0) {
+                fprintf(stderr, "Invalid device line: %s\n", value);
+		exit_status = -2;
+                goto out;
+            }
+#else
+            fprintf(stderr, "Shared disk functionality not supported\n");
+            exit_status = -2;
+            goto out;
+#endif
+        }
+
+        value = getenv("SBD_PACEMAKER");
+        if(value) {
+            check_pcmk = crm_is_true(value);
+        }
+
+        value = getenv("SBD_STARTMODE");
+        if(value) {
+            start_mode = crm_int_helper(value, NULL);
+            cl_log(LOG_INFO, "Start mode set to: %d", (int)start_mode);
+        }
+
+        value = getenv("SBD_WATCHDOG_DEV");
+        if(value) {
+            watchdogdev = value;
+        }
+
+        value = getenv("SBD_PIDFILE");
+        if(value) {
+            pidfile = strdup(value);
+            cl_log(LOG_INFO, "pidfile set to %s", pidfile);
+        }
+
+        value = getenv("SBD_DELAY_START");
+        if(value) {
+            start_delay = crm_is_true(value);
+        }
 
 	while ((c = getopt(argc, argv, "C:DPRTWZhvw:d:n:p:1:2:3:4:5:t:I:F:S:s:")) != -1) {
 		switch (c) {
@@ -681,7 +783,7 @@ int main(int argc, char **argv, char **envp)
 			w++;
 			break;
 		case 'w':
-			watchdogdev = strdup(optarg);
+			watchdogdev = optarg;
 			break;
 		case 'd':
 #if SUPPORT_SHARED_DISK
@@ -751,8 +853,11 @@ int main(int argc, char **argv, char **envp)
 	}
 
 	if (w > 0) {
-		watchdog_use = w % 2;
-	}
+            watchdog_use = w % 2;
+
+	} else if(watchdogdev == NULL || strcmp(watchdogdev, "/dev/null") == 0) {
+            watchdog_use = 0;
+        }
 
 	if (watchdog_use) {
 		cl_log(LOG_INFO, "Watchdog enabled.");
@@ -795,13 +900,22 @@ int main(int argc, char **argv, char **envp)
 	} else if (strcmp(argv[optind], "ping") == 0) {
             exit_status = ping_via_slots(argv[optind + 1], servants_leader);
 	} else if (strcmp(argv[optind], "watch") == 0) {
-            open_any_device(servants_leader);
+                if(servant_count > 0) {
+                    /* If no devices are specified, its not an error to be unable to find one */
+                    open_any_device(servants_leader);
+                }
 
                 /* We only want this to have an effect during watch right now;
                  * pinging and fencing would be too confused */
                 if (check_pcmk) {
                         recruit_servant("pcmk", 0);
                         servant_count--;
+                }
+
+                if(start_delay) {
+                    unsigned long delay = get_first_msgwait(servants_leader);
+
+                    sleep(delay);
                 }
 
                 exit_status = inquisitor();
@@ -811,6 +925,8 @@ int main(int argc, char **argv, char **envp)
 	}
 #else
         if (strcmp(argv[optind], "watch") == 0) {
+			/* sleep $(sbd -d "$SBD_DEVICE" dump | grep -m 1 msgwait | awk '{print $4}') 2>/dev/null */
+
                 /* We only want this to have an effect during watch right now;
                  * pinging and fencing would be too confused */
                 if (check_pcmk) {

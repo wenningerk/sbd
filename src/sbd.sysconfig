@@ -5,14 +5,14 @@
 # and to monitor. If specifying more than one path, use ";" as
 # separator.
 #
-SBD_DEVICE=""
+#SBD_DEVICE=""
 
 ## Type: yesno
 ## Default: yes
 #
 # Whether to enable the pacemaker integration.
 #
-SBD_PACEMAKER=
+SBD_PACEMAKER=yes
 
 ## Type: list(always,clean)
 ## Default: always
@@ -21,7 +21,7 @@ SBD_PACEMAKER=
 # allow sbd to start if it was not previously fenced. See the -S option
 # in the man page.
 #
-SBD_STARTMODE=
+SBD_STARTMODE=clean
 
 ## Type: yesno
 ## Default: no
@@ -34,14 +34,21 @@ SBD_STARTMODE=
 # This option may be ignored at a later point, once pacemaker handles
 # this case better.
 #
-SBD_DELAY_START=
+SBD_DELAY_START=no
 
 ## Type: yesno
 ## Default: yes
 #
 # Whether to use a watchdog.
 #
-SBD_WATCHDOG=
+SBD_WATCHDOG_DEV=/dev/watchdog
+
+## Type: string
+## Default: /var/run/sbd.pid
+#
+# Where to store the PID of the active process
+#
+SBD_PIDFILE=/var/run/sbd.pid
 
 ## Type: string
 ## Default: ""
@@ -49,4 +56,3 @@ SBD_WATCHDOG=
 # Additional options for starting sbd
 #
 SBD_OPTS=
-
