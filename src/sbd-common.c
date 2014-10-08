@@ -86,15 +86,17 @@ usage(void)
 "-P		Check Pacemaker quorum and node health (optional, watch only)\n"
 "-Z		Enable trace mode. WARNING: UNSAFE FOR PRODUCTION!\n"
 "Commands:\n"
+#if SUPPORT_SHARED_DISK
 "create		initialize N slots on <dev> - OVERWRITES DEVICE!\n"
 "list		List all allocated slots on device, and messages.\n"
 "dump		Dump meta-data header from device.\n"
-"watch		Loop forever, monitoring own slot\n"
 "allocate <node>\n"
 "		Allocate a slot for node (optional)\n"
 "message <node> (test|reset|off|clear|exit)\n"
 "		Writes the specified message to node's slot.\n"
-, cmdname);
+#endif
+"watch		Loop forever, monitoring own slot\n"
+                , cmdname);
 }
 
 int

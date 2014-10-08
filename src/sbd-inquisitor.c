@@ -935,6 +935,8 @@ int main(int argc, char **argv, char **envp)
                 }
 
                 exit_status = inquisitor();
+	} else {
+		exit_status = -2;
         }
 #endif
 out:
