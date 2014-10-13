@@ -25,6 +25,7 @@ AC_INIT([sbd],
 AC_CANONICAL_HOST
 AC_CONFIG_AUX_DIR(.)
 AC_CONFIG_HEADERS(config.h)
+m4_ifdef([AM_SILENT_RULES],[AM_SILENT_RULES([no])])
 AM_INIT_AUTOMAKE
 AM_PROG_CC_C_O
 
@@ -38,14 +39,11 @@ dnl pacemaker <= 1.1.8
 PKG_CHECK_MODULES(pcmk, [pcmk, pcmk-cib], HAVE_pcmk=1, HAVE_pcmk=0)
 PKG_CHECK_MODULES(libqb, [libqb])
 
+CPPFLAGS="$CPPFLAGS -Werror"
 if test $HAVE_pacemaker = 0 -a $HAVE_pcmk = 0; then
     AC_MSG_ERROR(No package 'pacemaker' found)
 elif test $HAVE_pacemaker = 1; then
     CPPFLAGS="$CPPFLAGS $glib_CFLAGS $pacemaker_CFLAGS"
-else
-    dnl Deal with the wrong 'includedir' in pcmk.pc from pacemaker < 1.1.8
-    pcmk_CFLAGS="-I${prefix}/include/pacemaker -I${prefix}/include/heartbeat"
-    CPPFLAGS="$CPPFLAGS $glib_CFLAGS $pcmk_CFLAGS"
 fi
 
 PKG_CHECK_MODULES(libxml, [libxml-2.0])
@@ -83,8 +81,50 @@ fi
 AC_DEFINE_UNQUOTED(SUPPORT_SHARED_DISK, $DISK, Turn on functionality that requires shared disk)
 AM_CONDITIONAL(SUPPORT_SHARED_DISK, test "$DISK" = "1")
 
+AC_MSG_NOTICE(Sanitizing prefix: ${prefix})
+case $prefix in
+  NONE)
+	prefix=/usr
+	dnl Fix default variables - "prefix" variable if not specified
+	if test "$localstatedir" = "\${prefix}/var"; then
+		localstatedir="/var"
+	fi
+	if test "$sysconfdir" = "\${prefix}/etc"; then
+		sysconfdir="/etc"
+	fi
+	;;
+esac
+
+AC_MSG_NOTICE(Sanitizing exec_prefix: ${exec_prefix})
+case $exec_prefix in
+  dnl For consistency with Heartbeat, map NONE->$prefix
+  NONE)	  exec_prefix=$prefix;;
+  prefix) exec_prefix=$prefix;;
+esac
+
+dnl Expand autoconf variables so that we dont end up with '${prefix}'
+dnl in #defines and python scripts
+dnl NOTE: Autoconf deliberately leaves them unexpanded to allow
+dnl    make exec_prefix=/foo install
+dnl No longer being able to do this seems like no great loss to me...
+
+eval prefix="`eval echo ${prefix}`"
+eval exec_prefix="`eval echo ${exec_prefix}`"
+eval bindir="`eval echo ${bindir}`"
+eval sbindir="`eval echo ${sbindir}`"
+eval libexecdir="`eval echo ${libexecdir}`"
+eval datadir="`eval echo ${datadir}`"
+eval sysconfdir="`eval echo ${sysconfdir}`"
+eval sharedstatedir="`eval echo ${sharedstatedir}`"
+eval localstatedir="`eval echo ${localstatedir}`"
+eval libdir="`eval echo ${libdir}`"
+eval includedir="`eval echo ${includedir}`"
+eval oldincludedir="`eval echo ${oldincludedir}`"
+eval infodir="`eval echo ${infodir}`"
+eval mandir="`eval echo ${mandir}`"
+
 dnl The Makefiles and shell scripts we output
-AC_CONFIG_FILES([Makefile src/Makefile agent/Makefile man/Makefile])
+AC_CONFIG_FILES([Makefile src/Makefile agent/Makefile man/Makefile src/sbd.service])
 
 dnl Now process the entire list of files added by previous 
 dnl  calls to AC_CONFIG_FILES()

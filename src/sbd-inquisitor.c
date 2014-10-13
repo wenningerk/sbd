@@ -17,6 +17,7 @@
  */
 
 #include "sbd.h"
+#include <pacemaker/crm/common/util.h>
 #define	LOCKSTRLEN	11
 
 static struct servants_list_item *servants_leader = NULL;
@@ -646,7 +647,7 @@ parse_device_line(const char *line)
         return found;
     }
 
-    crm_trace("Processing %d bytes: [%s]", max, line);
+    cl_log(LOG_DEBUG, "Processing %d bytes: [%s]", max, line);
     /* Skip initial whitespace */
     for (lpc = 0; lpc <= max && isspace(line[lpc]); lpc++) {
         last = lpc + 1;
@@ -671,9 +672,9 @@ parse_device_line(const char *line)
             if (entry == NULL) {
                 /* Skip */
             } else if (rc != 1) {
-                crm_warn("Could not parse (%d %d): %s", last, lpc, line + last);
+                cl_log(LOG_WARNING, "Could not parse (%d %d): %s", last, lpc, line + last);
             } else {
-                crm_trace("Adding '%s'", entry);
+                cl_log(LOG_DEBUG, "Adding '%s'", entry);
                 recruit_servant(entry, 0);
                 found++;
             }
@@ -731,7 +732,7 @@ int main(int argc, char **argv, char **envp)
 
         value = getenv("SBD_STARTMODE");
         if(value) {
-            start_mode = crm_int_helper(value, NULL);
+            start_mode = crm_parse_int(value, NULL);
             cl_log(LOG_INFO, "Start mode set to: %d", (int)start_mode);
         }
 
