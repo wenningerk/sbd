@@ -63,10 +63,11 @@
 
 static void clean_up(int rc);
 static void crm_diff_update(const char *event, xmlNode * msg);
-static void mon_refresh_state(void);
 static int cib_connect(gboolean full);
 static void set_pcmk_health(int healthy);
 static void notify_parent(void);
+static void compute_status(pe_working_set_t * data_set);
+static gboolean mon_refresh_state(gpointer user_data);
 
 static GMainLoop *mainloop = NULL;
 static guint timer_id_reconnect = 0;
@@ -141,7 +142,7 @@ mon_timer_notify(gpointer data)
 		if (counter == counter_max) {
 			free_xml(current_cib);
 			current_cib = get_cib_copy(cib);
-			mon_refresh_state();
+			mon_refresh_state(NULL);
 			counter = 0;
 		} else {
 			cib->cmds->noop(cib, 0);
@@ -182,7 +183,7 @@ cib_connect(gboolean full)
 		}
 
 		current_cib = get_cib_copy(cib);
-		mon_refresh_state();
+		mon_refresh_state(NULL);
 
 		if (full) {
 			if (rc == 0) {
@@ -372,13 +373,31 @@ notify_parent(void)
 	}
 }
 
+static crm_trigger_t *refresh_trigger = NULL;
+
+static gboolean
+mon_trigger_refresh(gpointer user_data)
+{
+    mainloop_set_trigger(refresh_trigger);
+    mon_refresh_state(NULL);
+    return FALSE;
+}
+
 static void
 crm_diff_update(const char *event, xmlNode * msg)
 {
 	int rc = -1;
 	const char *op = NULL;
+        long now = time(NULL);
+        static int updates = 0;
+        static mainloop_timer_t *refresh_timer = NULL;
 
-	if (current_cib != NULL) {
+        if(refresh_timer == NULL) {
+            refresh_timer = mainloop_timer_add("refresh", 2000, FALSE, mon_trigger_refresh, NULL);
+            refresh_trigger = mainloop_add_trigger(G_PRIORITY_LOW, mon_refresh_state, refresh_timer);
+        }
+
+        if (current_cib != NULL) {
 		xmlNode *cib_last = current_cib;
 		current_cib = NULL;
 
@@ -388,12 +407,14 @@ crm_diff_update(const char *event, xmlNode * msg)
 		switch(rc) {
 			case -pcmk_err_diff_resync:
 			case -pcmk_err_diff_failed:
-				crm_warn("[%s] %s Patch aborted: %s (%d)", event, op, pcmk_strerror(rc), rc);
+                            crm_warn("[%s] %s Patch aborted: %s (%d)", event, op, pcmk_strerror(rc), rc);
+                            break;
 			case pcmk_ok:
-				break;
+                            updates++;
+                            break;
 			default:
-				crm_notice("[%s] %s ABORTED: %s (%d)", event, op, pcmk_strerror(rc), rc);
-				break;
+                            crm_notice("[%s] %s ABORTED: %s (%d)", event, op, pcmk_strerror(rc), rc);
+                            break;
 		}
 	}
 
@@ -401,32 +422,51 @@ crm_diff_update(const char *event, xmlNode * msg)
 		current_cib = get_cib_copy(cib);
 	}
 
-	mon_refresh_state();
+    /* Refresh
+     * - immediately if the last update was more than 5s ago
+     * - every 10 updates
+     * - at most 2s after the last update
+     */
+    if (updates > 10 || (now - last_refresh) > (reconnect_msec / 1000)) {
+        mon_refresh_state(refresh_timer);
+        updates = 0;
+
+    } else {
+        mainloop_set_trigger(refresh_trigger);
+        mainloop_timer_start(refresh_timer);
+    }
 }
 
-static void
-mon_refresh_state(void)
+static gboolean
+mon_refresh_state(gpointer user_data)
 {
-	xmlNode *cib_copy = copy_xml(current_cib);
-	pe_working_set_t data_set;
+    xmlNode *cib_copy = copy_xml(current_cib);
+    pe_working_set_t data_set;
 
-	last_refresh = time(NULL);
+    last_refresh = time(NULL);
+    if(user_data) {
+        mainloop_timer_t *timer = user_data;
 
-	if (cli_config_update(&cib_copy, NULL, FALSE) == FALSE) {
-		cl_log(LOG_WARNING, "cli_config_update() failed - forcing reconnect to CIB");
-		if (cib) {
-			cib->cmds->signoff(cib);
-		}
-	} else {
-		set_working_set_defaults(&data_set);
-		data_set.input = cib_copy;
-		cluster_status(&data_set);
+        mainloop_timer_stop(timer);
+    }
 
-		compute_status(&data_set);
+    if (cli_config_update(&cib_copy, NULL, FALSE) == FALSE) {
+        cl_log(LOG_WARNING, "cli_config_update() failed - forcing reconnect to CIB");
+        if (cib) {
+            cib->cmds->signoff(cib);
+        }
 
-		cleanup_calculations(&data_set);
-	}
-	return;
+    } else {
+        set_working_set_defaults(&data_set);
+        data_set.input = cib_copy;
+        cluster_status(&data_set);
+
+        compute_status(&data_set);
+
+        cleanup_calculations(&data_set);
+    }
+
+    return FALSE;
 }
 
 static void
