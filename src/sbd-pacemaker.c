@@ -55,7 +55,7 @@
 #include <crm/common/xml.h>
 #include <crm/common/ipc.h>
 #include <crm/common/mainloop.h>
-#ifdef CHECK_AIS
+#ifdef SUPPORT_PLUGIN
 #  include <crm/cluster.h>
 #endif
 #include <crm/cib.h>
@@ -76,7 +76,7 @@ static int reconnect_msec = 1000;
 static int pcmk_healthy = 0;
 static int cib_connected = 0;
 
-#ifdef CHECK_AIS
+#ifdef SUPPORT_PLUGIN
 static guint timer_id_ais = 0;
 static enum cluster_type_e cluster_stack = pcmk_cluster_unknown;
 static struct timespec t_last_quorum;
@@ -212,7 +212,7 @@ cib_connect(gboolean full)
 	return rc;
 }
 
-#ifdef CHECK_AIS
+#ifdef SUPPORT_PLUGIN
 static gboolean
 mon_timer_ais(gpointer data)
 {
@@ -295,7 +295,7 @@ compute_status(pe_working_set_t * data_set)
 
 	}
 
-#ifdef CHECK_AIS
+#ifdef SUPPORT_PLUGIN
 	if (check_ais) {
 		int quorum_age = t_now.tv_sec - t_last_quorum.tv_sec;
 
@@ -496,7 +496,7 @@ servant_pcmk(const char *diskname, int mode, const void* argp)
 	/* We don't want any noisy crm messages */
 	set_crm_log_level(LOG_CRIT);
 
-#ifdef CHECK_AIS
+#ifdef SUPPORT_PLUGIN
 	cluster_stack = get_cluster_type();
 
 	if (cluster_stack != pcmk_cluster_classic_ais) {
@@ -539,7 +539,7 @@ servant_pcmk(const char *diskname, int mode, const void* argp)
 	mainloop_add_signal(SIGTERM, mon_shutdown);
 	mainloop_add_signal(SIGINT, mon_shutdown);
 	timer_id_notify = g_timeout_add(timeout_loop * 1000, mon_timer_notify, NULL);
-#ifdef CHECK_AIS
+#ifdef SUPPORT_PLUGIN
 	if (check_ais) {
 		timer_id_ais = g_timeout_add(timeout_loop * 1000, mon_timer_ais, NULL);
 	}
