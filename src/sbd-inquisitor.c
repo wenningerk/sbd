@@ -359,10 +359,10 @@ sbd_unlock_pidfile(const char *filename)
 
 int quorum_read(int good_servants)
 {
-	if (servant_count >= 3) 
+	if (servant_count > 2) 
 		return (good_servants > servant_count/2);
 	else
-		return (good_servants >= 1);
+		return (good_servants > 0);
 }
 
 void inquisitor_child(void)
@@ -509,8 +509,11 @@ void inquisitor_child(void)
                     pcmk_healthy = TRUE;
                 }
 
-                if (quorum_read(good_servants) || (check_pcmk && pcmk_healthy) || servant_count == 0) {
+                if (quorum_read(good_servants)
+                    || (check_pcmk && pcmk_healthy)
+                    || (check_pcmk == FALSE && servant_count == 0)) {
 			if (!decoupled) {
+                                cl_log(LOG_DEBUG, "Decoupling");
 				if (inquisitor_decouple() < 0) {
 					servants_kill();
 					exiting = 1;
@@ -521,18 +524,23 @@ void inquisitor_child(void)
 			}
 
 			if (servant_count == 0) {
+                                /* cl_log(LOG_DEBUG, "Stand-alone mode"); */
 
                         } else if (!quorum_read(good_servants)) {
+                            cl_log(LOG_DEBUG, "Not enough good servants: %d", good_servants);
 				if (!pcmk_override) {
 					cl_log(LOG_WARNING, "Majority of devices lost - surviving on pacemaker");
 					pcmk_override = 1; /* Just to ensure the message is only logged once */
 				}
+
 			} else {
 				pcmk_override = 0;
 			}
 
 			watchdog_tickle();
 			clock_gettime(CLOCK_MONOTONIC, &t_last_tickle);
+                        /* cl_log(LOG_DEBUG, "Tickle: q=%d, g=%d, p=%d, s=%d", */
+                        /*        quorum_read(good_servants), good_servants, pcmk_healthy, servant_count); */
 		}
 
 		/* Note that this can actually be negative, since we set
