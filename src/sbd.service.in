@@ -8,10 +8,10 @@ RefuseManualStart=true
 
 [Service]
 Type=forking
+PIDFile=@localstatedir@/run/sbd.pid
 EnvironmentFile=-@sysconfdir@/sysconfig/sbd
-ExecStart=@sbindir@/sbd $SBD_OPTS watch
+ExecStart=@sbindir@/sbd $SBD_OPTS -p @localstatedir@/run/sbd.pid watch 
 ExecStop=@bindir@/kill -TERM $MAINPID
-PIDFile=${SBD_PIDFILE}
 
 # Could this benefit from exit codes for restart?
 # Does this need to be set to msgwait * 1.2?

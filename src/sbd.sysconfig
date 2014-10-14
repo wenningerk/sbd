@@ -44,13 +44,6 @@ SBD_DELAY_START=no
 SBD_WATCHDOG_DEV=/dev/watchdog
 
 ## Type: string
-## Default: /var/run/sbd.pid
-#
-# Where to store the PID of the active process
-#
-SBD_PIDFILE=/var/run/sbd.pid
-
-## Type: string
 ## Default: ""
 #
 # Additional options for starting sbd
