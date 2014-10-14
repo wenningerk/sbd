@@ -505,7 +505,11 @@ void inquisitor_child(void)
 			}
 		}
 
-		if (quorum_read(good_servants) || pcmk_healthy) {
+                if(!decoupled && check_pcmk) {
+                    pcmk_healthy = TRUE;
+                }
+
+                if (quorum_read(good_servants) || (check_pcmk && pcmk_healthy) || servant_count == 0) {
 			if (!decoupled) {
 				if (inquisitor_decouple() < 0) {
 					servants_kill();
@@ -516,7 +520,9 @@ void inquisitor_child(void)
 				}
 			}
 
-			if (!quorum_read(good_servants)) {
+			if (servant_count == 0) {
+
+                        } else if (!quorum_read(good_servants)) {
 				if (!pcmk_override) {
 					cl_log(LOG_WARNING, "Majority of devices lost - surviving on pacemaker");
 					pcmk_override = 1; /* Just to ensure the message is only logged once */
@@ -528,7 +534,7 @@ void inquisitor_child(void)
 			watchdog_tickle();
 			clock_gettime(CLOCK_MONOTONIC, &t_last_tickle);
 		}
-		
+
 		/* Note that this can actually be negative, since we set
 		 * last_tickle after we set now. */
 		latency = t_now.tv_sec - t_last_tickle.tv_sec;
@@ -555,7 +561,7 @@ void inquisitor_child(void)
 			       "Latency: No liveness for %d s exceeds threshold of %d s (healthy servants: %d)",
 			       (int)latency, (int)timeout_watchdog_warn, good_servants);
 		}
-		
+
 		for (s = servants_leader; s; s = s->next) {
 			int age = t_now.tv_sec - s->t_started.tv_sec;
 
