@@ -517,7 +517,6 @@ int
 sbd_cdtocoredir(void)
 {
 	int		rc;
-	struct passwd*	pwent;
 	static const char *dir = NULL;
 
 	if (dir == NULL) {
@@ -526,19 +525,6 @@ sbd_cdtocoredir(void)
 	if ((rc=chdir(dir)) < 0) {
 		int errsave = errno;
 		cl_perror("Cannot chdir to [%s]", dir);
-		errno = errsave;
-		return rc;
-	}
-	pwent = getpwuid(getuid());
-	if (pwent == NULL) {
-		int errsave = errno;
-		cl_perror("Cannot get name for uid [%d]", getuid());
-		errno = errsave;
-		return -1;
-	}
-	if ((rc=chdir(pwent->pw_name)) < 0) {
-		int errsave = errno;
-		cl_perror("Cannot chdir to [%s/%s]", dir, pwent->pw_name);
 		errno = errsave;
 	}
 	return rc;
@@ -594,3 +580,49 @@ sbd_get_uname(void)
 		local_uname[i] = tolower(local_uname[i]);
 }
 
+
+#define FMT_MAX 256
+void
+sbd_set_format_string(int method, const char *daemon)
+{
+    int offset = 0;
+    char fmt[FMT_MAX];
+    struct utsname res;
+
+    switch(method) {
+        case QB_LOG_STDERR:
+            break;
+
+        case QB_LOG_SYSLOG:
+            if(daemon && strcmp(daemon, "sbd") != 0) {
+                offset += snprintf(fmt + offset, FMT_MAX - offset, "%10s: ", daemon);
+            }
+            break;
+
+        default:
+            /* When logging to a file */
+            if (uname(&res) == 0) {
+                offset +=
+                    snprintf(fmt + offset, FMT_MAX - offset, "%%t [%d] %s %10s: ", getpid(),
+                             res.nodename, daemon);
+            } else {
+                offset += snprintf(fmt + offset, FMT_MAX - offset, "%%t [%d] %10s: ", getpid(), daemon);
+            }
+    }
+
+    if (debug && method >= QB_LOG_STDERR) {
+        offset += snprintf(fmt + offset, FMT_MAX - offset, "(%%-12f:%%5l %%g) %%-7p: %%n: ");
+    } else {
+        offset += snprintf(fmt + offset, FMT_MAX - offset, "%%g %%-7p: %%n: ");
+    }
+
+    if (method == QB_LOG_SYSLOG) {
+        offset += snprintf(fmt + offset, FMT_MAX - offset, "%%b");
+    } else {
+        offset += snprintf(fmt + offset, FMT_MAX - offset, "\t%%b");
+    }
+
+    if(offset > 0) {
+        qb_log_format_set(method, fmt);
+    }
+}

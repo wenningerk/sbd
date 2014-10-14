@@ -12,6 +12,9 @@ RPM_OPTS	= --define "_sourcedir $(RPM_ROOT)" 	\
 		  --define "_specdir   $(RPM_ROOT)" 	\
 		  --define "_srcrpmdir $(RPM_ROOT)"
 
+MOCK_TARGET     ?= rhel-7.1-candidate-x86_64
+MOCK_OPTIONS	?= --resultdir=$(RPM_ROOT)/mock --no-cleanup-after
+
 export:
 	rm -f $(PACKAGE)-HEAD.tar.*
 	if [ -f $(TARFILE) ]; then						\
@@ -24,7 +27,20 @@ export:
 
 srpm:	export
 	rm -f *.src.rpm
+	sed -i 's/global\ commit.*/global\ commit\ $(TAG)/' $(PACKAGE).spec
 	rpmbuild $(RPM_OPTS) -bs $(PACKAGE).spec
 
 rpm:	export
 	rpmbuild $(RPM_OPTS) -ba $(PACKAGE).spec
+
+mock:   srpm
+	-rm -rf $(RPM_ROOT)/mock
+	@echo "mock --root=$* --rebuild $(MOCK_OPTIONS) $(RPM_ROOT)/*.src.rpm"
+	mock --root=$(MOCK_TARGET) --rebuild $(MOCK_OPTIONS) $(RPM_ROOT)/*.src.rpm
+
+beekhof: mock
+	cluster-helper -- 'rm -f sbd-*.x86_64.rpm'
+	cluster-helper --copy $(RPM_ROOT)/mock/sbd-*.x86_64.rpm {}: 
+	cluster-helper -- yum remove -y sbd
+	cluster-helper -- yum install -y sbd-*.x86_64.rpm
+	cluster-helper -- chkconfig sbd on

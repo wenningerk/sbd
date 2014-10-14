@@ -10,7 +10,7 @@ RefuseManualStart=true
 Type=forking
 EnvironmentFile=-@sysconfdir@/sysconfig/sbd
 ExecStart=@sbindir@/sbd $SBD_OPTS watch
-ExecStop=kill -TERM $MAINPID
+ExecStop=@bindir@/kill -TERM $MAINPID
 PIDFile=${SBD_PIDFILE}
 
 # Could this benefit from exit codes for restart?

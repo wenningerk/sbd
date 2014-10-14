@@ -114,6 +114,7 @@ void do_off(void);
 pid_t make_daemon(void);
 void maximize_priority(void);
 void sbd_get_uname(void);
+void sbd_set_format_string(int method, const char *daemon);
 
 /* Tunable defaults: */
 extern unsigned long    timeout_watchdog;

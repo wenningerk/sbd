@@ -63,6 +63,7 @@ int assign_servant(const char* devname, functionp_t functionp, int mode, const v
 	pid = fork();
 	if (pid == 0) {		/* child */
 		maximize_priority();
+                sbd_set_format_string(QB_LOG_SYSLOG, devname);
 		rc = (*functionp)(devname, mode, argp);
 		if (rc == -1)
 			exit(1);
@@ -482,7 +483,7 @@ void inquisitor_child(void)
 
 			if (!s->t_last.tv_sec)
 				continue;
-			
+
 			if (age < (int)(timeout_io+timeout_loop)) {
 				if (strcmp(s->devname, "pcmk") != 0) {
 					good_servants++;
@@ -702,7 +703,8 @@ int main(int argc, char **argv, char **envp)
 	}
 
         qb_facility = qb_log_facility2int("daemon");
-        qb_log_init(cmdname, qb_facility, LOG_ERR);
+        qb_log_init(cmdname, qb_facility, LOG_DEBUG);
+        sbd_set_format_string(QB_LOG_SYSLOG, "sbd");
 
         qb_log_ctl(QB_LOG_SYSLOG, QB_LOG_CONF_ENABLED, QB_TRUE);
         qb_log_ctl(QB_LOG_STDERR, QB_LOG_CONF_ENABLED, QB_FALSE);
@@ -729,6 +731,7 @@ int main(int argc, char **argv, char **envp)
         if(value) {
             check_pcmk = crm_is_true(value);
         }
+        cl_log(LOG_INFO, "Enable pacemaker checks: %d (%s)", (int)check_pcmk, value?value:"default");
 
         value = getenv("SBD_STARTMODE");
         if(value == NULL) {
@@ -777,6 +780,8 @@ int main(int argc, char **argv, char **envp)
 			break;
 		case 'v':
 			debug = 1;
+                        qb_log_filter_ctl(QB_LOG_SYSLOG, QB_LOG_FILTER_ADD, QB_LOG_FILTER_FILE, "*", LOG_DEBUG);
+                        qb_log_filter_ctl(QB_LOG_STDERR, QB_LOG_FILTER_ADD, QB_LOG_FILTER_FILE, "*", LOG_DEBUG);
 			cl_log(LOG_INFO, "Verbose mode enabled.");
 			break;
 		case 'T':
@@ -888,8 +893,6 @@ int main(int argc, char **argv, char **envp)
 		goto out;
 	}
 
-	maximize_priority();
-
 #if SUPPORT_SHARED_DISK
 	if (strcmp(argv[optind], "create") == 0) {
 		exit_status = init_devices(servants_leader);
@@ -911,6 +914,7 @@ int main(int argc, char **argv, char **envp)
 
                 /* We only want this to have an effect during watch right now;
                  * pinging and fencing would be too confused */
+                cl_log(LOG_INFO, "Turning on pacemaker checks: %d", check_pcmk);
                 if (check_pcmk) {
                         recruit_servant("pcmk", 0);
                         servant_count--;
@@ -933,6 +937,7 @@ int main(int argc, char **argv, char **envp)
 
                 /* We only want this to have an effect during watch right now;
                  * pinging and fencing would be too confused */
+                cl_log(LOG_INFO, "Turning on pacemaker checks: %d", check_pcmk);
                 if (check_pcmk) {
                         recruit_servant("pcmk", 0);
                         servant_count--;

@@ -15,7 +15,7 @@
 
 # Please submit bugfixes or comments via http://bugs.opensuse.org/
 #
-%global commit 8f91294574f0d4b51cd73b1d12ae0f8b30418a28
+%global commit d47ad7410475d6e69ae04336740dd63053bd1819
 %global shortcommit %(c=%{commit}; echo ${c:0:7})
 %global github_owner beekhof
 
@@ -25,7 +25,7 @@ Summary:        Storage-based death
 License:        GPLv2+
 Group:          System Environment/Daemons
 Version:        1.2.1
-Release:        0.2.%{shortcommit}.git%{?dist}
+Release:        0.4.%{shortcommit}.git%{?dist}
 Url:            https://github.com/%{github_owner}/%{name}
 Source0:        https://github.com/%{github_owner}/%{name}/archive/%{commit}/%{name}-%{commit}.tar.gz
 BuildRoot:      %{_tmppath}/%{name}-%{version}-build
@@ -41,6 +41,10 @@ BuildRequires:  libuuid-devel
 BuildRequires:  libxml2-devel
 BuildRequires:  pkgconfig
 BuildRequires:  python-devel
+
+%if 0%{?rhel} > 0
+ExclusiveArch: i686 x86_64 s390x
+%endif
 
 %if %{defined systemd_requires}
 %systemd_requires
@@ -104,8 +108,15 @@ rm -rf %{buildroot}
 %doc COPYING
 
 %changelog
+* Mon Oct 13 2014 <andrew@beekhof.net> - 1.2.1-0.4.3de531ed.git
+- Fixes for suitability to the el7 environment
+
+* Tue Sep 30 2014 <andrew@beekhof.net> - 1.2.1-0.3.8f912945.git
+- Only build on archs supported by the HA Add-on
+
 * Fri Aug 29 2014 <andrew@beekhof.net> - 1.2.1-0.2.8f912945.git
 - Remove some additional SUSE-isms
 
 * Fri Aug 29 2014 <andrew@beekhof.net> - 1.2.1-0.1.8f912945.git
 - Prepare for package review
+  Resolves: rhbz#1134245
