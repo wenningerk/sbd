@@ -42,6 +42,7 @@
 #include <unistd.h>
 #include <uuid/uuid.h>
 #include <qb/qblog.h>
+#include <pacemaker/crm_config.h>
 #include <config.h>
 
 /* signals reserved for multi-disk sbd */
@@ -54,7 +55,6 @@
 /* FIXME: should add dynamic check of SIG_XX >= SIGRTMAX */
 
 #define HOG_CHAR	0xff
-#define HA_COREDIR      "/var/lib/heartbeat/cores"
 
 /* Sector data types */
 struct sector_header_s {

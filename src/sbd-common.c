@@ -521,7 +521,7 @@ sbd_cdtocoredir(void)
 	static const char *dir = NULL;
 
 	if (dir == NULL) {
-		dir = HA_COREDIR;
+		dir = CRM_CORE_DIR;
 	}
 	if ((rc=chdir(dir)) < 0) {
 		int errsave = errno;
