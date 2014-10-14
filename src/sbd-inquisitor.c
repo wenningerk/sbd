@@ -731,10 +731,13 @@ int main(int argc, char **argv, char **envp)
         }
 
         value = getenv("SBD_STARTMODE");
-        if(value) {
-            start_mode = crm_parse_int(value, NULL);
-            cl_log(LOG_INFO, "Start mode set to: %d", (int)start_mode);
+        if(value == NULL) {
+        } else if(strcmp(value, "clean") == 0) {
+            start_mode = 1;
+        } else if(strcmp(value, "always") == 0) {
+            start_mode = 0;
         }
+        cl_log(LOG_INFO, "Start mode set to: %d (%s)", (int)start_mode, value?value:"default");
 
         value = getenv("SBD_WATCHDOG_DEV");
         if(value) {
@@ -866,8 +869,8 @@ int main(int argc, char **argv, char **envp)
 		cl_log(LOG_INFO, "Watchdog disabled.");
 	}
 
-	if (servant_count < 1 || servant_count > 3) {
-		fprintf(stderr, "You must specify 1 to 3 devices via the -d option.\n");
+	if (servant_count > 3) {
+		fprintf(stderr, "You can specify up to 3 devices via the -d option.\n");
 		exit_status = -1;
 		goto out;
 	}
