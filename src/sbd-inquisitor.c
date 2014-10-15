@@ -716,6 +716,7 @@ int main(int argc, char **argv, char **envp)
 		++cmdname;
 	}
 
+        watchdogdev = strdup("/dev/watchdog");
         qb_facility = qb_log_facility2int("daemon");
         qb_log_init(cmdname, qb_facility, LOG_DEBUG);
         sbd_set_format_string(QB_LOG_SYSLOG, "sbd");
@@ -758,7 +759,8 @@ int main(int argc, char **argv, char **envp)
 
         value = getenv("SBD_WATCHDOG_DEV");
         if(value) {
-            watchdogdev = value;
+            free(watchdogdev);
+            watchdogdev = strdup(value);
         }
 
         value = getenv("SBD_PIDFILE");
@@ -806,7 +808,9 @@ int main(int argc, char **argv, char **envp)
 			w++;
 			break;
 		case 'w':
-			watchdogdev = optarg;
+                        cl_log(LOG_NOTICE, "Using watchdog device '%s'", watchdogdev);
+                        free(watchdogdev);
+                        watchdogdev = strdup(optarg);
 			break;
 		case 'd':
 #if SUPPORT_SHARED_DISK

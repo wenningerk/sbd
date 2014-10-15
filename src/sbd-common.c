@@ -40,7 +40,7 @@ unsigned long	timeout_watchdog_crashdump = 240;
 int	skip_rt			= 0;
 int	debug			= 0;
 int	debug_mode		= 0;
-const char *watchdogdev		= "/dev/watchdog";
+char *watchdogdev		= NULL;
 char *	local_uname;
 
 /* Global, non-tunable variables: */
@@ -147,15 +147,13 @@ watchdog_init(void)
 	if (watchdogfd < 0 && watchdogdev != NULL) {
 		watchdogfd = open(watchdogdev, O_WRONLY);
 		if (watchdogfd >= 0) {
-			cl_log(LOG_NOTICE, "Using watchdog device: %s",
-					watchdogdev);
+			cl_log(LOG_NOTICE, "Using watchdog device '%s'", watchdogdev);
 			if ((watchdog_init_interval() < 0)
 					|| (watchdog_tickle() < 0)) {
 				return -1;
 			}
 		}else{
-			cl_perror("Cannot open watchdog device: %s",
-					watchdogdev);
+			cl_perror("Cannot open watchdog device '%s'", watchdogdev);
 			return -1;
 		}
 	}
