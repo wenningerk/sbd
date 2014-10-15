@@ -505,7 +505,7 @@ void inquisitor_child(void)
 			}
 		}
 
-                if(!decoupled && check_pcmk) {
+                if(!decoupled && check_pcmk && servant_count == 0) {
                     pcmk_healthy = TRUE;
                 }
 

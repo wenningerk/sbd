@@ -41,6 +41,7 @@ mock:   srpm
 beekhof: mock
 	cluster-helper -- 'rm -f sbd-*.x86_64.rpm'
 	cluster-helper --copy $(RPM_ROOT)/mock/sbd-*.x86_64.rpm {}: 
-	cluster-helper -- yum remove -y sbd
+	cluster-helper -- yum remove -y sbd sbd-debuginfo
 	cluster-helper -- yum install -y sbd-*.x86_64.rpm
 	cluster-helper -- chkconfig sbd on
+	cluster-helper -- cp /etc/sysconfig/sbd.rpmsave  /etc/sysconfig/sbd
