@@ -18,14 +18,14 @@
 %global commit 872e82f39db02eab3527ecfa392b1a930dd1964b
 %global shortcommit %(c=%{commit}; echo ${c:0:7})
 %global github_owner beekhof
-%global build 5
+%global buildnum 5
 
 Name:           sbd
 Summary:        Storage-based death
 License:        GPLv2+
 Group:          System Environment/Daemons
 Version:        1.2.1
-Release:        0.%{build}.%{shortcommit}.git%{?dist}
+Release:        0.%{buildnum}.%{shortcommit}.git%{?dist}
 Url:            https://github.com/%{github_owner}/%{name}
 Source0:        https://github.com/%{github_owner}/%{name}/archive/%{commit}/%{name}-%{commit}.tar.gz
 BuildRoot:      %{_tmppath}/%{name}-%{version}-build

@@ -29,6 +29,8 @@ int	servant_restart_count = 1;
 int	start_mode = 0;
 char*	pidfile = NULL;
 
+int parse_device_line(const char *line);
+
 void recruit_servant(const char *devname, pid_t pid)
 {
 	struct servants_list_item *s = servants_leader;
@@ -646,7 +648,7 @@ int inquisitor(void)
 }
 
 
-static int
+int
 parse_device_line(const char *line)
 {
     int lpc = 0;
@@ -773,6 +775,7 @@ int main(int argc, char **argv, char **envp)
         if(value) {
             start_delay = crm_is_true(value);
         }
+        cl_log(LOG_DEBUG, "Start delay: %d (%s)", (int)start_delay, value?value:"default");
 
 	while ((c = getopt(argc, argv, "C:DPRTWZhvw:d:n:p:1:2:3:4:5:t:I:F:S:s:")) != -1) {
 		switch (c) {
