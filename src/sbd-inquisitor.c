@@ -729,7 +729,7 @@ int main(int argc, char **argv, char **envp)
         if(value) {
 #if SUPPORT_SHARED_DISK
             int devices = parse_device_line(value);
-            if(devices > 0) {
+            if(devices < 1) {
                 fprintf(stderr, "Invalid device line: %s\n", value);
 		exit_status = -2;
                 goto out;
