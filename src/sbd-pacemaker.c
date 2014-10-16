@@ -61,6 +61,8 @@
 #include <crm/cib.h>
 #include <crm/pengine/status.h>
 
+extern int servant_count;
+
 static void clean_up(int rc);
 static void crm_diff_update(const char *event, xmlNode * msg);
 static int cib_connect(gboolean full);
@@ -271,6 +273,7 @@ compute_status(pe_working_set_t * data_set)
 {
 	static int	updates = 0;
 	static int	last_state = 0;
+        static int      ever_had_quorum = FALSE;
 	int		healthy = 0;
 	node_t *dc		= NULL;
 	struct timespec	t_now;
@@ -288,10 +291,14 @@ compute_status(pe_working_set_t * data_set)
 
 		if (crm_is_true(cib_quorum)) {
 			DBGLOG(LOG_INFO, "CIB: We have quorum!");
-		} else {
+                        ever_had_quorum = TRUE;
+
+		} else if(ever_had_quorum && servant_count > 0) {
 			LOGONCE(3, LOG_WARNING, "CIB: We do NOT have quorum!");
 			goto out;
-		}
+		} else {
+			DBGLOG(LOG_INFO, "CIB: We do not have quorum yet");
+                }
 
 	}
 
@@ -459,6 +466,7 @@ mon_refresh_state(gpointer user_data)
     } else {
         set_working_set_defaults(&data_set);
         data_set.input = cib_copy;
+        data_set.flags |= pe_flag_have_stonith_resource;
         cluster_status(&data_set);
 
         compute_status(&data_set);
@@ -492,9 +500,12 @@ servant_pcmk(const char *diskname, int mode, const void* argp)
 
 	cl_log(LOG_INFO, "Monitoring Pacemaker health");
 	set_proc_title("sbd: watcher: Pacemaker");
+        setenv("PCMK_watchdog", "true", 1);
 
-	/* We don't want any noisy crm messages */
-	set_crm_log_level(LOG_CRIT);
+        if(debug == 0) {
+            /* We don't want any noisy crm messages */
+            set_crm_log_level(LOG_CRIT);
+        }
 
 #ifdef SUPPORT_PLUGIN
 	cluster_stack = get_cluster_type();
