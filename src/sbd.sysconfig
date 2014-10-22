@@ -43,6 +43,21 @@ SBD_DELAY_START=no
 #
 SBD_WATCHDOG_DEV=/dev/watchdog
 
+## Type: integer
+## Default: 5
+#
+# How long, in seconds, the watchdog will wait before panicing the
+# node if no-one tickles it.
+#
+# This depends mostly on your storage latency; the majority of devices
+# must be successfully read within this time, or else the node will
+# self-fence.
+#
+# If your sbd device(s) reside on a multipath setup or iSCSI, this
+# should be the time required to detect a path failure.
+#
+SBD_WATCHDOG_TIMEOUT=5
+
 ## Type: string
 ## Default: ""
 #

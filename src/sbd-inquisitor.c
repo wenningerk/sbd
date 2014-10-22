@@ -765,6 +765,11 @@ int main(int argc, char **argv, char **envp)
             watchdogdev = strdup(value);
         }
 
+        value = getenv("SBD_WATCHDOG_TIMEOUT");
+        if(value) {
+            timeout_watchdog = crm_get_msec(value);
+        }
+
         value = getenv("SBD_PIDFILE");
         if(value) {
             pidfile = strdup(value);
