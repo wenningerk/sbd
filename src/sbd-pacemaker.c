@@ -274,32 +274,65 @@ compute_status(pe_working_set_t * data_set)
 	static int	updates = 0;
 	static int	last_state = 0;
         static int      ever_had_quorum = FALSE;
-	int		healthy = 0;
-	node_t *dc		= NULL;
+
+	int healthy = 0;
 	struct timespec	t_now;
+	node_t *node = pe_find_node(data_set->nodes, local_uname);
 
 	updates++;
-	dc = data_set->dc_node;
 	clock_gettime(CLOCK_MONOTONIC, &t_now);
 
-	if (dc == NULL) {
+	if (data_set->dc_node == NULL) {
 		LOGONCE(1, LOG_INFO, "We don't have a DC right now.");
 		healthy = 2;
 		goto out;
-	} else {
-		const char *cib_quorum = crm_element_value(data_set->input, XML_ATTR_HAVE_QUORUM);
+	}
 
-		if (crm_is_true(cib_quorum)) {
-			DBGLOG(LOG_INFO, "CIB: We have quorum!");
+
+        if (node == NULL || node->details->online == FALSE) {
+		LOGONCE(7, LOG_WARNING, "Node state: UNKNOWN");
+
+        } else if (node->details->unclean) {
+		LOGONCE(4, LOG_WARNING, "Node state: UNCLEAN");
+
+	} else if (node->details->pending) {
+		LOGONCE(5, LOG_WARNING, "Node state: pending");
+		healthy = 2;
+
+	} else {
+		LOGONCE(6, LOG_INFO, "Node state: online");
+		healthy = 1;
+
+		if (data_set->flags & pe_flag_have_quorum) {
+			DBGLOG(LOG_INFO, "Quorum obtained");
                         ever_had_quorum = TRUE;
 
-		} else if(ever_had_quorum && servant_count > 0) {
-			LOGONCE(3, LOG_WARNING, "CIB: We do NOT have quorum!");
-			goto out;
-		} else {
-			DBGLOG(LOG_INFO, "CIB: We do not have quorum yet");
-                }
+		} else if(ever_had_quorum == FALSE) {
+			LOGONCE(2, LOG_INFO, "We do not have quorum yet");
 
+                } else if(servant_count > 0) {
+			LOGONCE(3, LOG_WARNING, "Quorum lost");
+			goto out;
+
+		} else {
+                    /* We lost quorum, and there are no disks present
+                     * Setting healthy > 2 here will result in us self-fencing
+                     */
+                    switch (data_set->no_quorum_policy) {
+                        case no_quorum_freeze:
+                            LOGONCE(2, LOG_INFO, "Quorum lost: Freeze resources");
+                            break;
+                        case no_quorum_stop:
+                            LOGONCE(2, LOG_INFO, "Quorum lost: Stop ALL resources");
+                            break;
+                        case no_quorum_ignore:
+                            LOGONCE(2, LOG_INFO, "Quorum lost: Ignore");
+                            break;
+                        case no_quorum_suicide:
+                            LOGONCE(3, LOG_INFO, "Quorum lost: Self-fence");
+                            break;
+                    }
+                }
 	}
 
 #ifdef SUPPORT_PLUGIN
@@ -320,20 +353,6 @@ compute_status(pe_working_set_t * data_set)
 		}
 	}
 #endif
-
-	node_t *node = pe_find_node(data_set->nodes, local_uname);
-
-	if (node->details->unclean) {
-		LOGONCE(4, LOG_WARNING, "Node state: UNCLEAN");
-	} else if (node->details->pending) {
-		LOGONCE(5, LOG_WARNING, "Node state: pending");
-		healthy = 2;
-	} else if (node->details->online) {
-		LOGONCE(6, LOG_INFO, "Node state: online");
-		healthy = 1;
-	} else {
-		LOGONCE(7, LOG_WARNING, "Node state: UNKNOWN");
-	}
 
 out:
 	set_pcmk_health(healthy);
