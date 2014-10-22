@@ -61,12 +61,24 @@
 #include <crm/cib.h>
 #include <crm/pengine/status.h>
 
+
+enum pcmk_health 
+{
+    pcmk_health_unknown,
+    pcmk_health_pending,
+    pcmk_health_transient,
+    pcmk_health_unclean,
+    pcmk_health_shutdown,
+    pcmk_health_online,
+    pcmk_health_noquorum,
+};
+
 extern int servant_count;
 
 static void clean_up(int rc);
 static void crm_diff_update(const char *event, xmlNode * msg);
 static int cib_connect(gboolean full);
-static void set_pcmk_health(int healthy);
+static void set_pcmk_health(enum pcmk_health healthy);
 static void notify_parent(void);
 static void compute_status(pe_working_set_t * data_set);
 static gboolean mon_refresh_state(gpointer user_data);
@@ -75,7 +87,7 @@ static GMainLoop *mainloop = NULL;
 static guint timer_id_reconnect = 0;
 static guint timer_id_notify = 0;
 static int reconnect_msec = 1000;
-static int pcmk_healthy = 0;
+static enum pcmk_health pcmk_healthy = 0;
 static int cib_connected = 0;
 
 #ifdef SUPPORT_PLUGIN
@@ -84,6 +96,8 @@ static enum cluster_type_e cluster_stack = pcmk_cluster_unknown;
 static struct timespec t_last_quorum;
 static int check_ais = 0;
 #endif
+
+
 
 #define LOGONCE(state, lvl, fmt, args...) do {	\
 	if (last_state != state) {		\
@@ -96,6 +110,8 @@ static cib_t *cib = NULL;
 static xmlNode *current_cib = NULL;
 
 static long last_refresh = 0;
+
+
 
 static gboolean
 mon_timer_reconnect(gpointer data)
@@ -123,7 +139,7 @@ mon_cib_connection_destroy(gpointer user_data)
 	if (cib) {
 		cl_log(LOG_WARNING, "Disconnected from CIB");
 		cib->cmds->signoff(cib);
-		set_pcmk_health(2);
+		set_pcmk_health(pcmk_health_transient);
 		timer_id_reconnect = g_timeout_add(reconnect_msec, mon_timer_reconnect, NULL);
 	}
 	cib_connected = 0;
@@ -271,101 +287,102 @@ ais_membership_dispatch(cpg_handle_t handle,
 static void
 compute_status(pe_working_set_t * data_set)
 {
-	static int	updates = 0;
-	static int	last_state = 0;
-        static int      ever_had_quorum = FALSE;
+    static int updates = 0;
+    static int last_state = 0;
+    static int ever_had_quorum = FALSE;
 
-	int healthy = 0;
-	struct timespec	t_now;
-	node_t *node = pe_find_node(data_set->nodes, local_uname);
+    int healthy = 0;
+    struct timespec	t_now;
+    node_t *node = pe_find_node(data_set->nodes, local_uname);
 
-	updates++;
-	clock_gettime(CLOCK_MONOTONIC, &t_now);
+    updates++;
+    clock_gettime(CLOCK_MONOTONIC, &t_now);
 
-	if (data_set->dc_node == NULL) {
-		LOGONCE(1, LOG_INFO, "We don't have a DC right now.");
-		healthy = 2;
-		goto out;
-	}
+    if (data_set->dc_node == NULL) {
+        LOGONCE(pcmk_health_transient, LOG_INFO, "We don't have a DC right now.");
+        healthy = 2;
+        goto out;
+    }
 
 
-        if (node == NULL || node->details->online == FALSE) {
-		LOGONCE(7, LOG_WARNING, "Node state: UNKNOWN");
+    if (node == NULL || node->details->online == FALSE) {
+        LOGONCE(pcmk_health_unknown, LOG_WARNING, "Node state: UNKNOWN");
 
-        } else if (node->details->unclean) {
-		LOGONCE(4, LOG_WARNING, "Node state: UNCLEAN");
+    } else if (node->details->unclean) {
+        LOGONCE(pcmk_health_unclean, LOG_WARNING, "Node state: UNCLEAN");
 
-	} else if (node->details->pending) {
-		LOGONCE(5, LOG_WARNING, "Node state: pending");
-		healthy = 2;
+    } else if (node->details->pending) {
+        LOGONCE(pcmk_health_pending, LOG_WARNING, "Node state: pending");
 
-	} else {
-		LOGONCE(6, LOG_INFO, "Node state: online");
-		healthy = 1;
-
-		if (data_set->flags & pe_flag_have_quorum) {
-			DBGLOG(LOG_INFO, "Quorum obtained");
-                        ever_had_quorum = TRUE;
-
-		} else if(ever_had_quorum == FALSE) {
-			LOGONCE(2, LOG_INFO, "We do not have quorum yet");
-
-                } else if(servant_count > 0) {
-			LOGONCE(3, LOG_WARNING, "Quorum lost");
-			goto out;
-
-		} else {
-                    /* We lost quorum, and there are no disks present
-                     * Setting healthy > 2 here will result in us self-fencing
-                     */
-                    switch (data_set->no_quorum_policy) {
-                        case no_quorum_freeze:
-                            LOGONCE(2, LOG_INFO, "Quorum lost: Freeze resources");
-                            break;
-                        case no_quorum_stop:
-                            LOGONCE(2, LOG_INFO, "Quorum lost: Stop ALL resources");
-                            break;
-                        case no_quorum_ignore:
-                            LOGONCE(2, LOG_INFO, "Quorum lost: Ignore");
-                            break;
-                        case no_quorum_suicide:
-                            LOGONCE(3, LOG_INFO, "Quorum lost: Self-fence");
-                            break;
-                    }
-                }
-	}
-
-#ifdef SUPPORT_PLUGIN
-	if (check_ais) {
-		int quorum_age = t_now.tv_sec - t_last_quorum.tv_sec;
-
-		if (quorum_age > (int)(timeout_io+timeout_loop)) {
-			if (t_last_quorum.tv_sec != 0)
-				LOGONCE(2, LOG_WARNING, "AIS: Quorum outdated!");
-			goto out;
-		}
-
-		if (crm_have_quorum) {
-			DBGLOG(LOG_INFO, "AIS: We have quorum!");
-		} else {
-			LOGONCE(8, LOG_WARNING, "AIS: We do NOT have quorum!");
-			goto out;
-		}
-	}
+#if 0
+    } else if (node->details->shutdown) {
+        LOGONCE(pcmk_health_shutdown, LOG_WARNING, "Node state: shutting down");
 #endif
 
-out:
-	set_pcmk_health(healthy);
+    } else {
 
-	return;
+        if (data_set->flags & pe_flag_have_quorum) {
+            LOGONCE(pcmk_health_online, LOG_INFO, "Node state: online");
+            ever_had_quorum = TRUE;
+
+        } else if(ever_had_quorum == FALSE) {
+            LOGONCE(pcmk_health_transient, LOG_INFO, "We do not have quorum yet");
+
+        } else if(servant_count > 0) {
+            LOGONCE(pcmk_health_noquorum, LOG_WARNING, "Quorum lost");
+            goto out;
+
+        } else {
+            /* We lost quorum, and there are no disks present
+             * Setting healthy > 2 here will result in us self-fencing
+             */
+            switch (data_set->no_quorum_policy) {
+                case no_quorum_freeze:
+                    LOGONCE(pcmk_health_transient, LOG_INFO, "Quorum lost: Freeze resources");
+                    break;
+                case no_quorum_stop:
+                    LOGONCE(pcmk_health_transient, LOG_INFO, "Quorum lost: Stop ALL resources");
+                    break;
+                case no_quorum_ignore:
+                    LOGONCE(pcmk_health_transient, LOG_INFO, "Quorum lost: Ignore");
+                    break;
+                case no_quorum_suicide:
+                    LOGONCE(pcmk_health_unclean, LOG_INFO, "Quorum lost: Self-fence");
+                    break;
+            }
+        }
+    }
+
+#ifdef SUPPORT_PLUGIN
+    if (check_ais) {
+        int quorum_age = t_now.tv_sec - t_last_quorum.tv_sec;
+
+        if (quorum_age > (int)(timeout_io+timeout_loop)) {
+            if (t_last_quorum.tv_sec != 0)
+                LOGONCE(pcmk_health_transient, LOG_WARNING, "AIS: Quorum outdated");
+
+        } else if (crm_have_quorum) {
+            LOGONCE(pcmk_health_online, LOG_INFO, "AIS: We have quorum");
+
+        } else {
+            LOGONCE(pcmk_health_unclean, LOG_WARNING, "AIS: We do NOT have quorum");
+        }
+    }
+#endif
+
+  out:
+    set_pcmk_health(healthy);
+
+    return;
 }
 
 static void
-set_pcmk_health(int healthy)
+set_pcmk_health(enum pcmk_health healthy)
 {
 	pcmk_healthy = healthy;
 	notify_parent();
 }
+
 
 static void
 notify_parent(void)
@@ -384,18 +401,28 @@ notify_parent(void)
 	}
 
 	switch (pcmk_healthy) {
-		case 2:
-			DBGLOG(LOG_INFO, "Not notifying parent: state transient");
-			break;
-		case 1:
-			DBGLOG(LOG_INFO, "Notifying parent: healthy");
-			sigqueue(ppid, SIG_LIVENESS, signal_value);
-			break;
-		case 0:
-		default:
-			DBGLOG(LOG_WARNING, "Notifying parent: UNHEALTHY");
-			sigqueue(ppid, SIG_PCMK_UNHEALTHY, signal_value);
-			break;
+            case pcmk_health_pending:
+            case pcmk_health_shutdown:
+            case pcmk_health_transient:
+                DBGLOG(LOG_INFO, "Not notifying parent: state transient (%d)", pcmk_healthy);
+                break;
+
+            case pcmk_health_unknown:
+            case pcmk_health_unclean:
+            case pcmk_health_noquorum:
+                DBGLOG(LOG_WARNING, "Notifying parent: UNHEALTHY (%d)", pcmk_healthy);
+                sigqueue(ppid, SIG_PCMK_UNHEALTHY, signal_value);
+                break;
+
+            case pcmk_health_online:
+                DBGLOG(LOG_INFO, "Notifying parent: healthy");
+                sigqueue(ppid, SIG_LIVENESS, signal_value);
+                break;
+
+            default:
+                DBGLOG(LOG_WARNING, "Notifying parent: UNHEALTHY %d", pcmk_healthy);
+                sigqueue(ppid, SIG_PCMK_UNHEALTHY, signal_value);
+                break;
 	}
 }
 
