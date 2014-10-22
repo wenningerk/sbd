@@ -26,11 +26,16 @@
 #endif
 
 /* Tunable defaults: */
+#if  defined(__s390__) || defined(__s390x__)
+unsigned long	timeout_watchdog 	= 15;
+int		timeout_msgwait		= 30;
+#else
 unsigned long	timeout_watchdog 	= 5;
+int		timeout_msgwait		= 10;
+#endif
 unsigned long	timeout_watchdog_warn 	= 3;
 int		timeout_allocate 	= 2;
 int		timeout_loop	    	= 1;
-int		timeout_msgwait		= 10;
 int		timeout_io		= 3;
 int		timeout_startup		= 120;
 
