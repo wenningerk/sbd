@@ -720,7 +720,7 @@ int main(int argc, char **argv, char **envp)
 
         watchdogdev = strdup("/dev/watchdog");
         qb_facility = qb_log_facility2int("daemon");
-        qb_log_init(cmdname, qb_facility, LOG_DEBUG);
+        qb_log_init(cmdname, qb_facility, LOG_WARNING);
         sbd_set_format_string(QB_LOG_SYSLOG, "sbd");
 
         qb_log_ctl(QB_LOG_SYSLOG, QB_LOG_CONF_ENABLED, QB_TRUE);
@@ -803,11 +803,18 @@ int main(int argc, char **argv, char **envp)
 			cl_log(LOG_INFO, "Start timeout set to: %d", (int)timeout_startup);
 			break;
 		case 'v':
-			debug = 1;
+                    debug++;
+                    if(debug == 1) {
+                        qb_log_filter_ctl(QB_LOG_SYSLOG, QB_LOG_FILTER_ADD, QB_LOG_FILTER_FILE, "sbd-*", LOG_DEBUG);
+                        qb_log_filter_ctl(QB_LOG_STDERR, QB_LOG_FILTER_ADD, QB_LOG_FILTER_FILE, "sbd-*", LOG_DEBUG);
+			cl_log(LOG_INFO, "Verbose mode enabled.");
+
+                    } else if(debug == 2) {
+                        /* Go nuts, turn on pacemaker's logging too */
                         qb_log_filter_ctl(QB_LOG_SYSLOG, QB_LOG_FILTER_ADD, QB_LOG_FILTER_FILE, "*", LOG_DEBUG);
                         qb_log_filter_ctl(QB_LOG_STDERR, QB_LOG_FILTER_ADD, QB_LOG_FILTER_FILE, "*", LOG_DEBUG);
-			cl_log(LOG_INFO, "Verbose mode enabled.");
-			break;
+                    }
+                    break;
 		case 'T':
 			watchdog_set_timeout = 0;
 			cl_log(LOG_INFO, "Setting watchdog timeout disabled; using defaults.");
