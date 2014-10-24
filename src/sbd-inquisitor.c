@@ -805,14 +805,15 @@ int main(int argc, char **argv, char **envp)
 		case 'v':
                     debug++;
                     if(debug == 1) {
-                        qb_log_filter_ctl(QB_LOG_SYSLOG, QB_LOG_FILTER_ADD, QB_LOG_FILTER_FILE, "sbd-*", LOG_DEBUG);
-                        qb_log_filter_ctl(QB_LOG_STDERR, QB_LOG_FILTER_ADD, QB_LOG_FILTER_FILE, "sbd-*", LOG_DEBUG);
+                        qb_log_filter_ctl(QB_LOG_SYSLOG, QB_LOG_FILTER_ADD, QB_LOG_FILTER_FILE, "sbd-common.c,sbd-inquisitor.c,sbd-md.c,sbd-pacemaker.c", LOG_DEBUG);
+                        qb_log_filter_ctl(QB_LOG_STDERR, QB_LOG_FILTER_ADD, QB_LOG_FILTER_FILE, "sbd-common.c,sbd-inquisitor.c,sbd-md.c,sbd-pacemaker.c", LOG_DEBUG);
 			cl_log(LOG_INFO, "Verbose mode enabled.");
 
                     } else if(debug == 2) {
                         /* Go nuts, turn on pacemaker's logging too */
                         qb_log_filter_ctl(QB_LOG_SYSLOG, QB_LOG_FILTER_ADD, QB_LOG_FILTER_FILE, "*", LOG_DEBUG);
                         qb_log_filter_ctl(QB_LOG_STDERR, QB_LOG_FILTER_ADD, QB_LOG_FILTER_FILE, "*", LOG_DEBUG);
+			cl_log(LOG_INFO, "Verbose library mode enabled.");
                     }
                     break;
 		case 'T':
