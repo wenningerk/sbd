@@ -104,7 +104,8 @@ static int check_ais = 0;
 		cl_log(lvl, fmt, ##args);	\
 		last_state = state;		\
 	}					\
-	} while(0)
+        healthy = state;                        \
+    } while(0)
 
 static cib_t *cib = NULL;
 static xmlNode *current_cib = NULL;
@@ -300,7 +301,6 @@ compute_status(pe_working_set_t * data_set)
 
     if (data_set->dc_node == NULL) {
         LOGONCE(pcmk_health_transient, LOG_INFO, "We don't have a DC right now.");
-        healthy = 2;
         goto out;
     }
 
@@ -325,12 +325,12 @@ compute_status(pe_working_set_t * data_set)
             LOGONCE(pcmk_health_online, LOG_INFO, "Node state: online");
             ever_had_quorum = TRUE;
 
-        } else if(ever_had_quorum == FALSE) {
-            LOGONCE(pcmk_health_transient, LOG_INFO, "We do not have quorum yet");
-
         } else if(servant_count > 0) {
             LOGONCE(pcmk_health_noquorum, LOG_WARNING, "Quorum lost");
             goto out;
+
+        } else if(ever_had_quorum == FALSE) {
+            LOGONCE(pcmk_health_online, LOG_INFO, "We do not have quorum yet");
 
         } else {
             /* We lost quorum, and there are no disks present
