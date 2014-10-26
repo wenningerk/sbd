@@ -277,7 +277,7 @@ sbd_lock_pidfile(const char *filename)
 		if (read(fd, buf, sizeof(buf)) < 1) {
 			/* lockfile empty -> rm it and go on */;
 		} else {
-			if (sscanf(buf, "%lu", &pid) < 1) {
+			if (sscanf(buf, "%ld", &pid) < 1) {
 				/* lockfile screwed up -> rm it and go on */
 			} else {
 				if (pid > 1 && (getpid() != pid)
@@ -681,7 +681,7 @@ parse_device_line(const char *line)
             int rc = 1;
             char *entry = NULL;
 
-            if (lpc != last) {
+            if (lpc > last) {
                 entry = calloc(1, 1 + lpc - last);
                 rc = sscanf(line + last, "%[^;]", entry);
             }
