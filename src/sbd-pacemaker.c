@@ -493,16 +493,20 @@ crm_diff_update(const char *event, xmlNode * msg)
 static gboolean
 mon_refresh_state(gpointer user_data)
 {
-    xmlNode *cib_copy = copy_xml(current_cib);
+    xmlNode *cib_copy = NULL;
     pe_working_set_t data_set;
 
-    last_refresh = time(NULL);
+    if(current_cib == NULL) {
+        return FALSE;
+    }
+
     if(user_data) {
         mainloop_timer_t *timer = user_data;
 
         mainloop_timer_stop(timer);
     }
 
+    cib_copy = copy_xml(current_cib);
     if (cli_config_update(&cib_copy, NULL, FALSE) == FALSE) {
         cl_log(LOG_WARNING, "cli_config_update() failed - forcing reconnect to CIB");
         if (cib) {
@@ -510,6 +514,7 @@ mon_refresh_state(gpointer user_data)
         }
 
     } else {
+        last_refresh = time(NULL);
         set_working_set_defaults(&data_set);
         data_set.input = cib_copy;
         data_set.flags |= pe_flag_have_stonith_resource;
