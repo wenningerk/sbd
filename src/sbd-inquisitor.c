@@ -383,7 +383,7 @@ void inquisitor_child(void)
 	struct servants_list_item* s;
 
 	if (debug_mode) {
-		cl_log(LOG_ERR, "DEBUG MODE IS ACTIVE - DO NOT RUN IN PRODUCTION!");
+            cl_log(LOG_ERR, "DEBUG MODE %d IS ACTIVE - DO NOT RUN IN PRODUCTION!", debug_mode);
 	}
 
 	set_proc_title("sbd: inquisitor");
@@ -570,6 +570,11 @@ void inquisitor_child(void)
 			cl_log(LOG_WARNING,
 			       "Latency: No liveness for %d s exceeds threshold of %d s (healthy servants: %d)",
 			       (int)latency, (int)timeout_watchdog_warn, good_servants);
+
+                        if (debug_mode && watchdog_use) {
+                            /* In debug mode, trigger a reset before the watchdog can panic the machine */
+                            do_reset();
+                        }
 		}
 
 		for (s = servants_leader; s; s = s->next) {
