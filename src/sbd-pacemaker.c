@@ -305,8 +305,11 @@ compute_status(pe_working_set_t * data_set)
     }
 
 
-    if (node == NULL || node->details->online == FALSE) {
+    if (node == NULL) {
         LOGONCE(pcmk_health_unknown, LOG_WARNING, "Node state: UNKNOWN");
+
+    } else if (node->details->online == FALSE) {
+        LOGONCE(pcmk_health_unknown, LOG_WARNING, "Node state: OFFLINE");
 
     } else if (node->details->unclean) {
         LOGONCE(pcmk_health_unclean, LOG_WARNING, "Node state: UNCLEAN");
