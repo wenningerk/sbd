@@ -773,6 +773,9 @@ int main(int argc, char **argv, char **envp)
         value = getenv("SBD_WATCHDOG_TIMEOUT");
         if(value) {
             timeout_watchdog = crm_get_msec(value) / 1000;
+            if(timeout_watchdog > 5) {
+                timeout_watchdog_warn = (int)timeout_watchdog / 5 * 3;
+            }
         }
 
         value = getenv("SBD_PIDFILE");
@@ -860,6 +863,9 @@ int main(int argc, char **argv, char **envp)
 			break;
 		case '1':
 			timeout_watchdog = atoi(optarg);
+                        if(timeout_watchdog > 5) {
+                            timeout_watchdog_warn = (int)timeout_watchdog / 5 * 3;
+                        }
 			break;
 		case '2':
 			timeout_allocate = atoi(optarg);
