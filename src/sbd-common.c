@@ -629,3 +629,45 @@ sbd_set_format_string(int method, const char *daemon)
         qb_log_format_set(method, fmt);
     }
 }
+
+void
+notify_parent(enum pcmk_health healthy)
+{
+    pid_t		ppid;
+    union sigval	signal_value;
+
+    memset(&signal_value, 0, sizeof(signal_value));
+    ppid = getppid();
+
+    if (ppid == 1) {
+        /* Our parent died unexpectedly. Triggering
+         * self-fence. */
+        cl_log(LOG_WARNING, "Our parent is dead.");
+        do_reset();
+    }
+
+    switch (healthy) {
+        case pcmk_health_pending:
+        case pcmk_health_shutdown:
+        case pcmk_health_transient:
+            DBGLOG(LOG_INFO, "Not notifying parent: state transient (%d)", healthy);
+            break;
+
+        case pcmk_health_unknown:
+        case pcmk_health_unclean:
+        case pcmk_health_noquorum:
+            DBGLOG(LOG_WARNING, "Notifying parent: UNHEALTHY (%d)", healthy);
+            sigqueue(ppid, SIG_PCMK_UNHEALTHY, signal_value);
+            break;
+
+        case pcmk_health_online:
+            DBGLOG(LOG_INFO, "Notifying parent: healthy");
+            sigqueue(ppid, SIG_LIVENESS, signal_value);
+            break;
+
+        default:
+            DBGLOG(LOG_WARNING, "Notifying parent: UNHEALTHY %d", healthy);
+            sigqueue(ppid, SIG_PCMK_UNHEALTHY, signal_value);
+            break;
+    }
+}

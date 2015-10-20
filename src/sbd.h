@@ -101,6 +101,17 @@ struct sbd_context {
 	struct iocb	io;
 };
 
+enum pcmk_health 
+{
+    pcmk_health_unknown,
+    pcmk_health_pending,
+    pcmk_health_transient,
+    pcmk_health_unclean,
+    pcmk_health_shutdown,
+    pcmk_health_online,
+    pcmk_health_noquorum,
+};
+
 void usage(void);
 int watchdog_init_interval(void);
 int watchdog_tickle(void);
@@ -115,6 +126,7 @@ pid_t make_daemon(void);
 void maximize_priority(void);
 void sbd_get_uname(void);
 void sbd_set_format_string(int method, const char *daemon);
+void notify_parent(enum pcmk_health healthy);
 
 /* Tunable defaults: */
 extern unsigned long    timeout_watchdog;
@@ -155,6 +167,7 @@ int servant(const char *diskname, int mode, const void* argp);
 #endif
 
 int servant_pcmk(const char *diskname, int mode, const void* argp);
+int servant_cluster(const char *diskname, int mode, const void* argp);
 
 struct servants_list_item *lookup_servant_by_dev(const char *devname);
 struct servants_list_item *lookup_servant_by_pid(pid_t pid);
@@ -172,3 +185,11 @@ void set_proc_title(const char *fmt,...);
 #define DBGLOG(lvl, fmt, args...) do {           \
 	if (debug > 0) cl_log(lvl, fmt, ##args); \
 	} while(0)
+
+#define LOGONCE(state, lvl, fmt, args...) do {	\
+	if (last_state != state) {		\
+		cl_log(lvl, fmt, ##args);	\
+		last_state = state;		\
+	}					\
+        healthy = state;                        \
+    } while(0)

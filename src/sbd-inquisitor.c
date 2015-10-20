@@ -23,6 +23,7 @@
 static struct servants_list_item *servants_leader = NULL;
 
 int	check_pcmk = 0;
+int	check_cluster = 0;
 int	servant_count	= 0;
 int	servant_restart_interval = 5;
 int	servant_restart_count = 1;
@@ -30,6 +31,21 @@ int	start_mode = 0;
 char*	pidfile = NULL;
 
 int parse_device_line(const char *line);
+
+static bool
+sbd_is_disk(struct servants_list_item *servant) 
+{
+    if (servant == NULL) {
+        return true;
+
+    } else if (strcmp(servant->devname, "pcmk") == 0) {
+        return false;
+
+    } else if (strcmp(servant->devname, "cluster") == 0) {
+        return false;
+    }
+    return true;
+}
 
 void recruit_servant(const char *devname, pid_t pid)
 {
@@ -129,10 +145,7 @@ void servant_start(struct servants_list_item *s)
 			return;
 	}
 	s->restarts++;
-	if (strcmp("pcmk",s->devname) == 0) {
-		DBGLOG(LOG_INFO, "Starting Pacemaker servant");
-		s->pid = assign_servant(s->devname, servant_pcmk, start_mode, NULL);
-	} else {
+	if (sbd_is_disk(s)) {
 #if SUPPORT_SHARED_DISK
 		DBGLOG(LOG_INFO, "Starting servant for device %s", s->devname);
 		s->pid = assign_servant(s->devname, servant, start_mode, s);
@@ -140,7 +153,17 @@ void servant_start(struct servants_list_item *s)
                 cl_log(LOG_ERR, "Shared disk functionality not supported");
                 return;
 #endif
-        }
+	} else if(strcmp("pcmk", s->devname) == 0) {
+		DBGLOG(LOG_INFO, "Starting Pacemaker servant");
+		s->pid = assign_servant(s->devname, servant_pcmk, start_mode, NULL);
+
+	} else if(strcmp("cluster", s->devname) == 0) {
+		DBGLOG(LOG_INFO, "Starting Cluster servant");
+		/* s->pid = assign_servant(s->devname, servant_cluster, start_mode, NULL); */
+
+        } else {
+            cl_log(LOG_ERR, "Unrecognized servant: %s", s->devname);
+        }        
 
 	clock_gettime(CLOCK_MONOTONIC, &s->t_started);
 	return;
@@ -434,7 +457,7 @@ void inquisitor_child(void)
 			}
 		} else if (sig == SIG_PCMK_UNHEALTHY) {
 			s = lookup_servant_by_pid(sinfo.si_pid);
-			if (s && strcmp(s->devname, "pcmk") == 0) {
+			if (sbd_is_disk(s) == false) {
 				if (pcmk_healthy != 0) {
 					cl_log(LOG_WARNING, "Pacemaker health check: UNHEALTHY");
 				}
@@ -453,7 +476,7 @@ void inquisitor_child(void)
 		} else if (sig == SIG_LIVENESS) {
 			s = lookup_servant_by_pid(sinfo.si_pid);
 			if (s) {
-				if (strcmp(s->devname, "pcmk") == 0) {
+                                if (sbd_is_disk(s) == false) {
 					if (pcmk_healthy != 1) {
 						cl_log(LOG_INFO, "Pacemaker health check: OK");
 					}
@@ -487,12 +510,12 @@ void inquisitor_child(void)
 				continue;
 
 			if (age < (int)(timeout_io+timeout_loop)) {
-				if (strcmp(s->devname, "pcmk") != 0) {
+				if (sbd_is_disk(s)) {
 					good_servants++;
 				}
 				s->outdated = 0;
 			} else if (!s->outdated) {
-				if (strcmp(s->devname, "pcmk") == 0) {
+				if (sbd_is_disk(s) == false) {
 					/* If the state is outdated, we
 					 * override the last reported
 					 * state */
@@ -845,6 +868,9 @@ int main(int argc, char **argv, char **envp)
 			goto out;
 #endif
 			break;
+		case 'c':
+			check_cluster = 1;
+			break;
 		case 'P':
 			check_pcmk = 1;
 			break;
@@ -941,28 +967,26 @@ int main(int argc, char **argv, char **envp)
 #if SUPPORT_SHARED_DISK
 	if (strcmp(argv[optind], "create") == 0) {
 		exit_status = init_devices(servants_leader);
-	} else if (strcmp(argv[optind], "dump") == 0) {
+
+        } else if (strcmp(argv[optind], "dump") == 0) {
 		exit_status = dump_headers(servants_leader);
-	} else if (strcmp(argv[optind], "allocate") == 0) {
+
+        } else if (strcmp(argv[optind], "allocate") == 0) {
             exit_status = allocate_slots(argv[optind + 1], servants_leader);
-	} else if (strcmp(argv[optind], "list") == 0) {
+
+        } else if (strcmp(argv[optind], "list") == 0) {
 		exit_status = list_slots(servants_leader);
-	} else if (strcmp(argv[optind], "message") == 0) {
+
+        } else if (strcmp(argv[optind], "message") == 0) {
             exit_status = messenger(argv[optind + 1], argv[optind + 2], servants_leader);
-	} else if (strcmp(argv[optind], "ping") == 0) {
+
+        } else if (strcmp(argv[optind], "ping") == 0) {
             exit_status = ping_via_slots(argv[optind + 1], servants_leader);
-	} else if (strcmp(argv[optind], "watch") == 0) {
+
+        } else if (strcmp(argv[optind], "watch") == 0) {
                 if(servant_count > 0) {
                     /* If no devices are specified, its not an error to be unable to find one */
                     open_any_device(servants_leader);
-                }
-
-                /* We only want this to have an effect during watch right now;
-                 * pinging and fencing would be too confused */
-                cl_log(LOG_INFO, "Turning on pacemaker checks: %d", check_pcmk);
-                if (check_pcmk) {
-                        recruit_servant("pcmk", 0);
-                        servant_count--;
                 }
 
                 if(start_delay) {
@@ -971,14 +995,13 @@ int main(int argc, char **argv, char **envp)
                     sleep(delay);
                 }
 
-                exit_status = inquisitor();
-
 	} else {
 		exit_status = -2;
 	}
-#else
+#endif
+        
         if (strcmp(argv[optind], "watch") == 0) {
-			/* sleep $(sbd -d "$SBD_DEVICE" dump | grep -m 1 msgwait | awk '{print $4}') 2>/dev/null */
+            /* sleep $(sbd -d "$SBD_DEVICE" dump | grep -m 1 msgwait | awk '{print $4}') 2>/dev/null */
 
                 /* We only want this to have an effect during watch right now;
                  * pinging and fencing would be too confused */
@@ -988,12 +1011,16 @@ int main(int argc, char **argv, char **envp)
                         servant_count--;
                 }
 
+                cl_log(LOG_INFO, "Turning on cluster checks: %d", check_cluster);
+                if (check_cluster) {
+                        recruit_servant("cluster", 0);
+                        servant_count--;
+                }
+
                 exit_status = inquisitor();
-	} else {
-		exit_status = -2;
         }
-#endif
-out:
+        
+  out:
 	if (exit_status < 0) {
 		if (exit_status == -2) {
 			usage();

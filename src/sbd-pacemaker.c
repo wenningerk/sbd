@@ -55,23 +55,8 @@
 #include <crm/common/xml.h>
 #include <crm/common/ipc.h>
 #include <crm/common/mainloop.h>
-#ifdef SUPPORT_PLUGIN
-#  include <crm/cluster.h>
-#endif
 #include <crm/cib.h>
 #include <crm/pengine/status.h>
-
-
-enum pcmk_health 
-{
-    pcmk_health_unknown,
-    pcmk_health_pending,
-    pcmk_health_transient,
-    pcmk_health_unclean,
-    pcmk_health_shutdown,
-    pcmk_health_online,
-    pcmk_health_noquorum,
-};
 
 extern int servant_count;
 
@@ -79,7 +64,6 @@ static void clean_up(int rc);
 static void crm_diff_update(const char *event, xmlNode * msg);
 static int cib_connect(gboolean full);
 static void set_pcmk_health(enum pcmk_health healthy);
-static void notify_parent(void);
 static void compute_status(pe_working_set_t * data_set);
 static gboolean mon_refresh_state(gpointer user_data);
 
@@ -88,31 +72,13 @@ static guint timer_id_reconnect = 0;
 static guint timer_id_notify = 0;
 static int reconnect_msec = 1000;
 static enum pcmk_health pcmk_healthy = 0;
+static int last_state = 0;
 static int cib_connected = 0;
-
-#ifdef SUPPORT_PLUGIN
-static guint timer_id_ais = 0;
-static enum cluster_type_e cluster_stack = pcmk_cluster_unknown;
-static struct timespec t_last_quorum;
-static int check_ais = 0;
-#endif
-
-
-
-#define LOGONCE(state, lvl, fmt, args...) do {	\
-	if (last_state != state) {		\
-		cl_log(lvl, fmt, ##args);	\
-		last_state = state;		\
-	}					\
-        healthy = state;                        \
-    } while(0)
 
 static cib_t *cib = NULL;
 static xmlNode *current_cib = NULL;
 
 static long last_refresh = 0;
-
-
 
 static gboolean
 mon_timer_reconnect(gpointer data)
@@ -165,7 +131,7 @@ mon_timer_notify(gpointer data)
 			counter = 0;
 		} else {
 			cib->cmds->noop(cib, 0);
-			notify_parent();
+			notify_parent(pcmk_healthy);
 			counter++;
 		}
 	}
@@ -231,73 +197,17 @@ cib_connect(gboolean full)
 	return rc;
 }
 
-#ifdef SUPPORT_PLUGIN
-static gboolean
-mon_timer_ais(gpointer data)
-{
-	if (timer_id_ais > 0) {
-		g_source_remove(timer_id_ais);
-	}
-
-	send_cluster_text(crm_class_quorum, NULL, TRUE, NULL, crm_msg_ais);
-
-	/* The timer is set in the response processing */
-	return FALSE;
-}
-
-static void
-ais_membership_destroy(gpointer user_data)
-{
-	cl_log(LOG_ERR, "AIS connection terminated - corosync down?");
-#if SUPPORT_PLUGIN
-	ais_fd_sync = -1;
-#endif
-	/* TODO: Is recovery even worth it here? After all, this means
-	 * that corosync died ... */
-	exit(1);
-}
-
-static void
-ais_membership_dispatch(cpg_handle_t handle,
-                          const struct cpg_name *groupName,
-                          uint32_t nodeid, uint32_t pid, void *msg, size_t msg_len)
-{
-	uint32_t kind = 0;
-	const char *from = NULL;
-	char *data = pcmk_message_common_cs(handle, nodeid, pid, msg, &kind, &from);
-
-	if (!data) {
-		return;
-	}
-	free(data);
-	data = NULL;
-
-	if (kind != crm_class_quorum) {
-		return;
-	}
-
-	DBGLOG(LOG_INFO, "AIS quorum state: %d", (int)crm_have_quorum);
-	clock_gettime(CLOCK_MONOTONIC, &t_last_quorum);
-
-	timer_id_ais = g_timeout_add(timeout_loop * 1000, mon_timer_ais, NULL);
-
-	return;
-}
-#endif
 
 static void
 compute_status(pe_working_set_t * data_set)
 {
     static int updates = 0;
-    static int last_state = 0;
     static int ever_had_quorum = FALSE;
 
     int healthy = 0;
-    struct timespec	t_now;
     node_t *node = pe_find_node(data_set->nodes, local_uname);
 
     updates++;
-    clock_gettime(CLOCK_MONOTONIC, &t_now);
 
     if (data_set->dc_node == NULL) {
         LOGONCE(pcmk_health_transient, LOG_INFO, "We don't have a DC right now.");
@@ -306,7 +216,7 @@ compute_status(pe_working_set_t * data_set)
 
 
     if (node == NULL) {
-        LOGONCE(pcmk_health_unknown, LOG_WARNING, "Node state: UNKNOWN");
+        LOGONCE(pcmk_health_unknown, LOG_WARNING, "Node state: %s is UNKNOWN", local_uname);
 
     } else if (node->details->online == FALSE) {
         LOGONCE(pcmk_health_unknown, LOG_WARNING, "Node state: OFFLINE");
@@ -356,23 +266,6 @@ compute_status(pe_working_set_t * data_set)
         }
     }
 
-#ifdef SUPPORT_PLUGIN
-    if (check_ais) {
-        int quorum_age = t_now.tv_sec - t_last_quorum.tv_sec;
-
-        if (quorum_age > (int)(timeout_io+timeout_loop)) {
-            if (t_last_quorum.tv_sec != 0)
-                LOGONCE(pcmk_health_transient, LOG_WARNING, "AIS: Quorum outdated");
-
-        } else if (crm_have_quorum) {
-            LOGONCE(pcmk_health_online, LOG_INFO, "AIS: We have quorum");
-
-        } else {
-            LOGONCE(pcmk_health_unclean, LOG_WARNING, "AIS: We do NOT have quorum");
-        }
-    }
-#endif
-
   out:
     set_pcmk_health(healthy);
 
@@ -383,50 +276,7 @@ static void
 set_pcmk_health(enum pcmk_health healthy)
 {
 	pcmk_healthy = healthy;
-	notify_parent();
-}
-
-
-static void
-notify_parent(void)
-{
-	pid_t		ppid;
-	union sigval	signal_value;
-
-	memset(&signal_value, 0, sizeof(signal_value));
-	ppid = getppid();
-
-	if (ppid == 1) {
-		/* Our parent died unexpectedly. Triggering
-		* self-fence. */
-		cl_log(LOG_WARNING, "Our parent is dead.");
-		do_reset();
-	}
-
-	switch (pcmk_healthy) {
-            case pcmk_health_pending:
-            case pcmk_health_shutdown:
-            case pcmk_health_transient:
-                DBGLOG(LOG_INFO, "Not notifying parent: state transient (%d)", pcmk_healthy);
-                break;
-
-            case pcmk_health_unknown:
-            case pcmk_health_unclean:
-            case pcmk_health_noquorum:
-                DBGLOG(LOG_WARNING, "Notifying parent: UNHEALTHY (%d)", pcmk_healthy);
-                sigqueue(ppid, SIG_PCMK_UNHEALTHY, signal_value);
-                break;
-
-            case pcmk_health_online:
-                DBGLOG(LOG_INFO, "Notifying parent: healthy");
-                sigqueue(ppid, SIG_LIVENESS, signal_value);
-                break;
-
-            default:
-                DBGLOG(LOG_WARNING, "Notifying parent: UNHEALTHY %d", pcmk_healthy);
-                sigqueue(ppid, SIG_PCMK_UNHEALTHY, signal_value);
-                break;
-	}
+	notify_parent(pcmk_healthy);
 }
 
 static crm_trigger_t *refresh_trigger = NULL;
@@ -550,7 +400,6 @@ int
 servant_pcmk(const char *diskname, int mode, const void* argp)
 {
 	int exit_code = 0;
-	crm_cluster_t crm_cluster;
 
 	cl_log(LOG_INFO, "Monitoring Pacemaker health");
 	set_proc_title("sbd: watcher: Pacemaker");
@@ -560,28 +409,6 @@ servant_pcmk(const char *diskname, int mode, const void* argp)
             /* We don't want any noisy crm messages */
             set_crm_log_level(LOG_CRIT);
         }
-
-#ifdef SUPPORT_PLUGIN
-	cluster_stack = get_cluster_type();
-
-	if (cluster_stack != pcmk_cluster_classic_ais) {
-		check_ais = 0;
-	} else {
-		check_ais = 1;
-		cl_log(LOG_INFO, "Legacy plug-in detected, AIS quorum check enabled");
-		if(is_openais_cluster()) {
-		    crm_cluster.destroy = ais_membership_destroy;
-		    crm_cluster.cpg.cpg_deliver_fn = ais_membership_dispatch;
-		    /* crm_cluster.cpg.cpg_confchg_fn = pcmk_cpg_membership; TODO? */
-		    crm_cluster.cpg.cpg_confchg_fn = NULL;
-		}
-
-		while (!crm_cluster_connect(&crm_cluster)) {
-			cl_log(LOG_INFO, "Waiting to sign in with cluster ...");
-			sleep(reconnect_msec / 1000);
-		}
-	}
-#endif
 
 	if (current_cib == NULL) {
 		cib = cib_new();
@@ -604,11 +431,6 @@ servant_pcmk(const char *diskname, int mode, const void* argp)
 	mainloop_add_signal(SIGTERM, mon_shutdown);
 	mainloop_add_signal(SIGINT, mon_shutdown);
 	timer_id_notify = g_timeout_add(timeout_loop * 1000, mon_timer_notify, NULL);
-#ifdef SUPPORT_PLUGIN
-	if (check_ais) {
-		timer_id_ais = g_timeout_add(timeout_loop * 1000, mon_timer_ais, NULL);
-	}
-#endif
 
 	g_main_run(mainloop);
 	g_main_destroy(mainloop);
