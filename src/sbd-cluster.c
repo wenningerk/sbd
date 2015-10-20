@@ -55,35 +55,36 @@
 #include <crm/common/xml.h>
 #include <crm/common/ipc.h>
 #include <crm/common/mainloop.h>
+#include <crm/cluster.h>
 
-#ifdef SUPPORT_PLUGIN
-#  include <crm/cluster.h>
+//undef SUPPORT_PLUGIN
+//define SUPPORT_PLUGIN 1
+
+#if SUPPORT_PLUGIN
+static int last_state = 0;
 static guint timer_id_ais = 0;
 static struct timespec t_last_quorum;
-static int check_ais = 0;
 #endif
 
 extern int servant_count;
 enum pcmk_health cluster_healthy;
-static int last_state = 0;
 static int reconnect_msec = 1000;
 static GMainLoop *mainloop = NULL;
 
 static void
 set_cluster_health(enum pcmk_health healthy)
 {
-	cluster_healthy = healthy;
-	notify_parent(cluster_healthy);
+    cluster_healthy = healthy;
+    notify_parent(cluster_healthy);
 }
-
-static enum cluster_type_e cluster_stack = pcmk_cluster_unknown;
 
 void
 update_status(void)
 {
     enum pcmk_health healthy = pcmk_health_unknown;
-#ifdef SUPPORT_PLUGIN
-    if (check_ais) {
+
+#if SUPPORT_PLUGIN
+    {
         struct timespec	t_now;
         int quorum_age = t_now.tv_sec - t_last_quorum.tv_sec;
 
@@ -101,65 +102,58 @@ update_status(void)
         }
     }
 #endif
+
     set_cluster_health(healthy);
 }
 
-#ifdef SUPPORT_PLUGIN
+#if SUPPORT_PLUGIN
 static gboolean
 plugin_timer(gpointer data)
 {
-	if (timer_id_ais > 0) {
-		g_source_remove(timer_id_ais);
-	}
+    if (timer_id_ais > 0) {
+        g_source_remove(timer_id_ais);
+    }
 
-	send_cluster_text(crm_class_quorum, NULL, TRUE, NULL, crm_msg_ais);
+    send_cluster_text(crm_class_quorum, NULL, TRUE, NULL, crm_msg_ais);
 
-	/* The timer is set in the response processing */
-	return FALSE;
-}
-
-static void
-plugin_membership_destroy(gpointer user_data)
-{
-	cl_log(LOG_ERR, "AIS connection terminated - corosync down?");
-
-#if SUPPORT_PLUGIN
-    ais_fd_sync = -1;
-#endif
-
-    /* TODO: Is recovery even worth it here? After all, this means
-	 * that corosync died ... */
-	exit(1);
+    /* The timer is set in the response processing */
+    return FALSE;
 }
 
 static void
 plugin_membership_dispatch(cpg_handle_t handle,
-                          const struct cpg_name *groupName,
-                          uint32_t nodeid, uint32_t pid, void *msg, size_t msg_len)
+                           const struct cpg_name *groupName,
+                           uint32_t nodeid, uint32_t pid, void *msg, size_t msg_len)
 {
-	uint32_t kind = 0;
-	const char *from = NULL;
-	char *data = pcmk_message_common_cs(handle, nodeid, pid, msg, &kind, &from);
+    uint32_t kind = 0;
+    const char *from = NULL;
+    char *data = pcmk_message_common_cs(handle, nodeid, pid, msg, &kind, &from);
 
-	if (!data) {
-		return;
-	}
-	free(data);
-	data = NULL;
+    if (!data) {
+        return;
+    }
+    free(data);
+    data = NULL;
 
-	if (kind != crm_class_quorum) {
-		return;
-	}
+    if (kind != crm_class_quorum) {
+        return;
+    }
 
-	DBGLOG(LOG_INFO, "AIS quorum state: %d", (int)crm_have_quorum);
-	clock_gettime(CLOCK_MONOTONIC, &t_last_quorum);
-        update_status();
+    DBGLOG(LOG_INFO, "AIS quorum state: %d", (int)crm_have_quorum);
+    clock_gettime(CLOCK_MONOTONIC, &t_last_quorum);
+    update_status();
 
-	timer_id_ais = g_timeout_add(timeout_loop * 1000, plugin_timer, NULL);
-	return;
+    timer_id_ais = g_timeout_add(timeout_loop * 1000, plugin_timer, NULL);
+    return;
 }
 #endif
 
+static void
+sbd_membership_destroy(gpointer user_data)
+{
+    cl_log(LOG_ERR, "Connection to %s terminated", name_for_cluster_type(get_cluster_type()));
+    exit(1);
+}
 
 static void
 clean_up(int rc)
@@ -176,44 +170,51 @@ cluster_shutdown(int nsig)
 int
 servant_cluster(const char *diskname, int mode, const void* argp)
 {
-    crm_cluster_t crm_cluster;
+    crm_cluster_t cluster;
+    enum cluster_type_e cluster_stack = get_cluster_type();
 
-    cluster_stack = get_cluster_type();
-
-#ifdef SUPPORT_PLUGIN
-
-	if (cluster_stack != pcmk_cluster_classic_ais) {
-		check_ais = 0;
-	} else {
-		check_ais = 1;
-		cl_log(LOG_INFO, "Legacy plug-in detected, AIS quorum check enabled");
-		if(is_openais_cluster()) {
-		    crm_cluster.destroy = plugin_membership_destroy;
-		    crm_cluster.cpg.cpg_deliver_fn = plugin_membership_dispatch;
-		    /* crm_cluster.cpg.cpg_confchg_fn = pcmk_cpg_membership; TODO? */
-		    crm_cluster.cpg.cpg_confchg_fn = NULL;
-		}
-
-		while (!crm_cluster_connect(&crm_cluster)) {
-			cl_log(LOG_INFO, "Waiting to sign in with cluster ...");
-			sleep(reconnect_msec / 1000);
-		}
-	}
-
-	if (check_ais) {
-		timer_id_ais = g_timeout_add(timeout_loop * 1000, plugin_timer, NULL);
-	}
+    if (is_openais_cluster()) {
+#if SUPPORT_COROSYNC
+        cluster.destroy = sbd_membership_destroy;
+        cluster.cpg.cpg_confchg_fn = pcmk_cpg_membership;
+#  if SUPPORT_PLUGIN
+        cluster.cpg.cpg_deliver_fn = plugin_membership_dispatch;
+#  endif
 #endif
-	mainloop = g_main_new(FALSE);
+    }
 
-	mainloop_add_signal(SIGTERM, cluster_shutdown);
-	mainloop_add_signal(SIGINT, cluster_shutdown);
+    while (!crm_cluster_connect(&cluster)) {
+        cl_log(LOG_INFO, "Waiting to sign in with cluster ...");
+        sleep(reconnect_msec / 1000);
+    }
 
-	g_main_run(mainloop);
-	g_main_destroy(mainloop);
+    /* stonith_our_uname = cluster.uname; */
+    /* stonith_our_uuid = cluster.uuid; */    
 
-	clean_up(0);
-	return 0;                   /* never reached */
+    switch (cluster_stack) {
+#if SUPPORT_PLUGIN
+        case pcmk_cluster_classic_ais:
+            timer_id_ais = g_timeout_add(timeout_loop * 1000, plugin_timer, NULL);
+            break;
+#endif
+        case pcmk_cluster_corosync:
+            break;
+        case pcmk_cluster_cman:
+            break;
+
+        default:
+            cl_log(LOG_ERR, "Unsupported cluster type: %s", name_for_cluster_type(cluster_stack));
+            exit(1);
+            break;
+    }
+    mainloop = g_main_new(FALSE);
+
+    mainloop_add_signal(SIGTERM, cluster_shutdown);
+    mainloop_add_signal(SIGINT, cluster_shutdown);
+
+    g_main_run(mainloop);
+    g_main_destroy(mainloop);
+    
+    clean_up(0);
+    return 0;                   /* never reached */
 }
-
-
