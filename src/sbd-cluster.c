@@ -19,134 +19,81 @@
  * Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
  */
 
-/* TODO list:
- *
- * - Trying to shutdown a node if no devices are up will fail, since SBD
- * currently uses a message via the disk to achieve this.
- *
- * - Shutting down cluster nodes while the majority of devices is down
- * will eventually take the cluster below the quorum threshold, at which
- * time the remaining cluster nodes will all immediately suicide.
- *
- */
-
 #include "sbd.h"
 
-#include <sys/param.h>
-
-#include <crm/crm.h>
-
-#include <stdio.h>
-#include <sys/types.h>
-#include <sys/stat.h>
-#include <unistd.h>
-
-#include <stdlib.h>
 #include <errno.h>
-#include <fcntl.h>
-#include <libgen.h>
-#include <sys/utsname.h>
 
 #include <config.h>
-
 #include <crm_config.h>
-#include <crm/msg_xml.h>
-#include <crm/common/util.h>
-#include <crm/common/xml.h>
-#include <crm/common/ipc.h>
-#include <crm/common/mainloop.h>
+
 #include <crm/cluster.h>
+#include <crm/common/mainloop.h>
 
 //undef SUPPORT_PLUGIN
 //define SUPPORT_PLUGIN 1
 
-#if SUPPORT_PLUGIN
-static int last_state = 0;
-static guint timer_id_ais = 0;
-static struct timespec t_last_quorum;
-#endif
-
 extern int servant_count;
-enum pcmk_health cluster_healthy;
 static int reconnect_msec = 1000;
 static GMainLoop *mainloop = NULL;
-
-static void
-set_cluster_health(enum pcmk_health healthy)
-{
-    cluster_healthy = healthy;
-    notify_parent(cluster_healthy);
-}
-
-void
-update_status(void)
-{
-    enum pcmk_health healthy = pcmk_health_unknown;
+static guint notify_timer = 0;
 
 #if SUPPORT_PLUGIN
-    {
-        struct timespec	t_now;
-        int quorum_age = t_now.tv_sec - t_last_quorum.tv_sec;
-
-        clock_gettime(CLOCK_MONOTONIC, &t_now);
-
-        if (quorum_age > (int)(timeout_io+timeout_loop)) {
-            if (t_last_quorum.tv_sec != 0)
-                LOGONCE(pcmk_health_transient, LOG_WARNING, "AIS: Quorum outdated");
-
-        } else if (crm_have_quorum) {
-            LOGONCE(pcmk_health_online, LOG_INFO, "AIS: We have quorum");
-
-        } else {
-            LOGONCE(pcmk_health_unclean, LOG_WARNING, "AIS: We do NOT have quorum");
-        }
-    }
-#endif
-
-    set_cluster_health(healthy);
-}
-
-#if SUPPORT_PLUGIN
-static gboolean
-plugin_timer(gpointer data)
-{
-    if (timer_id_ais > 0) {
-        g_source_remove(timer_id_ais);
-    }
-
-    send_cluster_text(crm_class_quorum, NULL, TRUE, NULL, crm_msg_ais);
-
-    /* The timer is set in the response processing */
-    return FALSE;
-}
-
 static void
-plugin_membership_dispatch(cpg_handle_t handle,
+sbd_plugin_membership_dispatch(cpg_handle_t handle,
                            const struct cpg_name *groupName,
                            uint32_t nodeid, uint32_t pid, void *msg, size_t msg_len)
 {
-    uint32_t kind = 0;
-    const char *from = NULL;
-    char *data = pcmk_message_common_cs(handle, nodeid, pid, msg, &kind, &from);
-
-    if (!data) {
-        return;
+    if(msg_len > 0) {
+        set_servant_health(pcmk_health_online, LOG_INFO,
+                           "Connected to %s", name_for_cluster_type(get_cluster_type()));
+    } else {
+        set_servant_health(pcmk_health_unclean, LOG_INFO,
+                           "Broken %s message", name_for_cluster_type(get_cluster_type()));
     }
-    free(data);
-    data = NULL;
-
-    if (kind != crm_class_quorum) {
-        return;
-    }
-
-    DBGLOG(LOG_INFO, "AIS quorum state: %d", (int)crm_have_quorum);
-    clock_gettime(CLOCK_MONOTONIC, &t_last_quorum);
-    update_status();
-
-    timer_id_ais = g_timeout_add(timeout_loop * 1000, plugin_timer, NULL);
+    notify_parent();
     return;
 }
 #endif
+
+#if SUPPORT_COROSYNC
+void
+sbd_cpg_membership_dispatch(cpg_handle_t handle,
+                    const struct cpg_name *groupName,
+                    const struct cpg_address *member_list, size_t member_list_entries,
+                    const struct cpg_address *left_list, size_t left_list_entries,
+                    const struct cpg_address *joined_list, size_t joined_list_entries)
+{
+    if(member_list_entries > 0) {
+        set_servant_health(pcmk_health_online, LOG_INFO,
+                           "Connected to %s", name_for_cluster_type(get_cluster_type()));
+    } else {
+        set_servant_health(pcmk_health_unclean, LOG_INFO,
+                           "Empty %s membership", name_for_cluster_type(get_cluster_type()));
+    }
+    notify_parent();
+}
+#endif
+
+static gboolean
+notify_timer_cb(gpointer data)
+{
+    enum cluster_type_e stack = get_cluster_type();
+    switch (stack) {
+        case pcmk_cluster_classic_ais:
+            send_cluster_text(crm_class_quorum, NULL, TRUE, NULL, crm_msg_ais);
+            break;
+
+        case pcmk_cluster_corosync:
+        case pcmk_cluster_cman:
+            /* TODO - Make a CPG call and only call notify_parent() when we get a reply */
+            notify_parent();
+            break;
+
+        default:
+            break;
+    }
+    return TRUE;
+}
 
 static void
 sbd_membership_destroy(gpointer user_data)
@@ -173,14 +120,28 @@ servant_cluster(const char *diskname, int mode, const void* argp)
     crm_cluster_t cluster;
     enum cluster_type_e cluster_stack = get_cluster_type();
 
-    if (is_openais_cluster()) {
-#if SUPPORT_COROSYNC
-        cluster.destroy = sbd_membership_destroy;
-        cluster.cpg.cpg_confchg_fn = pcmk_cpg_membership;
-#  if SUPPORT_PLUGIN
-        cluster.cpg.cpg_deliver_fn = plugin_membership_dispatch;
-#  endif
+    switch (cluster_stack) {
+
+#if SUPPORT_PLUGIN
+        case pcmk_cluster_classic_ais:
+            cluster.destroy = sbd_membership_destroy;
+            cluster.cpg.cpg_deliver_fn = sbd_plugin_membership_dispatch;
+            break;
 #endif
+
+#if SUPPORT_COROSYNC
+        case pcmk_cluster_corosync:
+        case pcmk_cluster_cman:
+            cluster.destroy = sbd_membership_destroy;
+            cluster.cpg.cpg_confchg_fn = sbd_cpg_membership_dispatch;
+            break;
+            break;
+#endif
+
+        default:
+            cl_log(LOG_ERR, "Unsupported cluster type: %s", name_for_cluster_type(cluster_stack));
+            exit(1);
+            break;
     }
 
     while (!crm_cluster_connect(&cluster)) {
@@ -189,29 +150,18 @@ servant_cluster(const char *diskname, int mode, const void* argp)
     }
 
     /* stonith_our_uname = cluster.uname; */
-    /* stonith_our_uuid = cluster.uuid; */    
+    /* stonith_our_uuid = cluster.uuid; */
 
-    switch (cluster_stack) {
-#if SUPPORT_PLUGIN
-        case pcmk_cluster_classic_ais:
-            timer_id_ais = g_timeout_add(timeout_loop * 1000, plugin_timer, NULL);
-            break;
-#endif
-        case pcmk_cluster_corosync:
-            break;
-        case pcmk_cluster_cman:
-            break;
+    set_servant_health(pcmk_health_transient, LOG_INFO,
+                       "Empty %s membership", name_for_cluster_type(get_cluster_type()));
 
-        default:
-            cl_log(LOG_ERR, "Unsupported cluster type: %s", name_for_cluster_type(cluster_stack));
-            exit(1);
-            break;
-    }
     mainloop = g_main_new(FALSE);
+    notify_timer = g_timeout_add(timeout_loop * 1000, notify_timer_cb, NULL);
 
     mainloop_add_signal(SIGTERM, cluster_shutdown);
     mainloop_add_signal(SIGINT, cluster_shutdown);
 
+    
     g_main_run(mainloop);
     g_main_destroy(mainloop);
     

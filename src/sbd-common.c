@@ -51,6 +51,7 @@ char *	local_uname;
 /* Global, non-tunable variables: */
 int	sector_size		= 0;
 int	watchdogfd 		= -1;
+int     servant_health          = 0;
 
 /*const char	*devname;*/
 const char	*cmdname;
@@ -631,7 +632,7 @@ sbd_set_format_string(int method, const char *daemon)
 }
 
 void
-notify_parent(enum pcmk_health healthy)
+notify_parent(void)
 {
     pid_t		ppid;
     union sigval	signal_value;
@@ -646,28 +647,50 @@ notify_parent(enum pcmk_health healthy)
         do_reset();
     }
 
-    switch (healthy) {
+    switch (servant_health) {
         case pcmk_health_pending:
         case pcmk_health_shutdown:
         case pcmk_health_transient:
-            DBGLOG(LOG_INFO, "Not notifying parent: state transient (%d)", healthy);
+            DBGLOG(LOG_INFO, "Not notifying parent: state transient (%d)", servant_health);
             break;
 
         case pcmk_health_unknown:
         case pcmk_health_unclean:
         case pcmk_health_noquorum:
-            DBGLOG(LOG_WARNING, "Notifying parent: UNHEALTHY (%d)", healthy);
+            DBGLOG(LOG_WARNING, "Notifying parent: UNHEALTHY (%d)", servant_health);
             sigqueue(ppid, SIG_PCMK_UNHEALTHY, signal_value);
             break;
 
         case pcmk_health_online:
-            DBGLOG(LOG_INFO, "Notifying parent: healthy");
+            DBGLOG(LOG_INFO, "Notifying parent: servant_health");
             sigqueue(ppid, SIG_LIVENESS, signal_value);
             break;
 
         default:
-            DBGLOG(LOG_WARNING, "Notifying parent: UNHEALTHY %d", healthy);
+            DBGLOG(LOG_WARNING, "Notifying parent: UNHEALTHY %d", servant_health);
             sigqueue(ppid, SIG_PCMK_UNHEALTHY, signal_value);
             break;
+    }
+}
+
+void
+set_servant_health(enum pcmk_health state, int level, char const *format, ...)
+{
+    if (servant_health != state) {
+        va_list ap;
+        int len = 0;
+        char *string = NULL;
+
+        servant_health = state;
+
+        va_start(ap, format);
+        len = vasprintf (&string, format, ap);
+
+        if(len > 0) {
+            cl_log(level, string);
+        }
+        
+        va_end(ap);
+        free(string);
     }
 }

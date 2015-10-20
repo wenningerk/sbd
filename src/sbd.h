@@ -126,7 +126,7 @@ pid_t make_daemon(void);
 void maximize_priority(void);
 void sbd_get_uname(void);
 void sbd_set_format_string(int method, const char *daemon);
-void notify_parent(enum pcmk_health healthy);
+void notify_parent(void);
 
 /* Tunable defaults: */
 extern unsigned long    timeout_watchdog;
@@ -186,10 +186,5 @@ void set_proc_title(const char *fmt,...);
 	if (debug > 0) cl_log(lvl, fmt, ##args); \
 	} while(0)
 
-#define LOGONCE(state, lvl, fmt, args...) do {	\
-	if (last_state != state) {		\
-		cl_log(lvl, fmt, ##args);	\
-		last_state = state;		\
-	}					\
-        healthy = state;                        \
-    } while(0)
+extern int servant_health;
+void set_servant_health(enum pcmk_health state, int level, char const *format, ...) __attribute__ ((__format__ (__printf__, 3, 4)));

@@ -63,7 +63,6 @@ extern int servant_count;
 static void clean_up(int rc);
 static void crm_diff_update(const char *event, xmlNode * msg);
 static int cib_connect(gboolean full);
-static void set_pcmk_health(enum pcmk_health healthy);
 static void compute_status(pe_working_set_t * data_set);
 static gboolean mon_refresh_state(gpointer user_data);
 
@@ -71,8 +70,6 @@ static GMainLoop *mainloop = NULL;
 static guint timer_id_reconnect = 0;
 static guint timer_id_notify = 0;
 static int reconnect_msec = 1000;
-static enum pcmk_health pcmk_healthy = 0;
-static int last_state = 0;
 static int cib_connected = 0;
 
 static cib_t *cib = NULL;
@@ -104,9 +101,8 @@ static void
 mon_cib_connection_destroy(gpointer user_data)
 {
 	if (cib) {
-		cl_log(LOG_WARNING, "Disconnected from CIB");
 		cib->cmds->signoff(cib);
-		set_pcmk_health(pcmk_health_transient);
+		set_servant_health(pcmk_health_transient, LOG_WARNING, "Disconnected from CIB");
 		timer_id_reconnect = g_timeout_add(reconnect_msec, mon_timer_reconnect, NULL);
 	}
 	cib_connected = 0;
@@ -131,7 +127,7 @@ mon_timer_notify(gpointer data)
 			counter = 0;
 		} else {
 			cib->cmds->noop(cib, 0);
-			notify_parent(pcmk_healthy);
+			notify_parent();
 			counter++;
 		}
 	}
@@ -204,46 +200,45 @@ compute_status(pe_working_set_t * data_set)
     static int updates = 0;
     static int ever_had_quorum = FALSE;
 
-    int healthy = 0;
     node_t *node = pe_find_node(data_set->nodes, local_uname);
 
     updates++;
 
     if (data_set->dc_node == NULL) {
-        LOGONCE(pcmk_health_transient, LOG_INFO, "We don't have a DC right now.");
+        set_servant_health(pcmk_health_transient, LOG_INFO, "We don't have a DC right now.");
         goto out;
     }
 
 
     if (node == NULL) {
-        LOGONCE(pcmk_health_unknown, LOG_WARNING, "Node state: %s is UNKNOWN", local_uname);
+        set_servant_health(pcmk_health_unknown, LOG_WARNING, "Node state: %s is UNKNOWN", local_uname);
 
     } else if (node->details->online == FALSE) {
-        LOGONCE(pcmk_health_unknown, LOG_WARNING, "Node state: OFFLINE");
+        set_servant_health(pcmk_health_unknown, LOG_WARNING, "Node state: OFFLINE");
 
     } else if (node->details->unclean) {
-        LOGONCE(pcmk_health_unclean, LOG_WARNING, "Node state: UNCLEAN");
+        set_servant_health(pcmk_health_unclean, LOG_WARNING, "Node state: UNCLEAN");
 
     } else if (node->details->pending) {
-        LOGONCE(pcmk_health_pending, LOG_WARNING, "Node state: pending");
+        set_servant_health(pcmk_health_pending, LOG_WARNING, "Node state: pending");
 
 #if 0
     } else if (node->details->shutdown) {
-        LOGONCE(pcmk_health_shutdown, LOG_WARNING, "Node state: shutting down");
+        set_servant_health(pcmk_health_shutdown, LOG_WARNING, "Node state: shutting down");
 #endif
 
     } else {
 
         if (data_set->flags & pe_flag_have_quorum) {
-            LOGONCE(pcmk_health_online, LOG_INFO, "Node state: online");
+            set_servant_health(pcmk_health_online, LOG_INFO, "Node state: online");
             ever_had_quorum = TRUE;
 
         } else if(servant_count > 0) {
-            LOGONCE(pcmk_health_noquorum, LOG_WARNING, "Quorum lost");
+            set_servant_health(pcmk_health_noquorum, LOG_WARNING, "Quorum lost");
             goto out;
 
         } else if(ever_had_quorum == FALSE) {
-            LOGONCE(pcmk_health_online, LOG_INFO, "We do not have quorum yet");
+            set_servant_health(pcmk_health_online, LOG_INFO, "We do not have quorum yet");
 
         } else {
             /* We lost quorum, and there are no disks present
@@ -251,32 +246,25 @@ compute_status(pe_working_set_t * data_set)
              */
             switch (data_set->no_quorum_policy) {
                 case no_quorum_freeze:
-                    LOGONCE(pcmk_health_transient, LOG_INFO, "Quorum lost: Freeze resources");
+                    set_servant_health(pcmk_health_transient, LOG_INFO, "Quorum lost: Freeze resources");
                     break;
                 case no_quorum_stop:
-                    LOGONCE(pcmk_health_transient, LOG_INFO, "Quorum lost: Stop ALL resources");
+                    set_servant_health(pcmk_health_transient, LOG_INFO, "Quorum lost: Stop ALL resources");
                     break;
                 case no_quorum_ignore:
-                    LOGONCE(pcmk_health_transient, LOG_INFO, "Quorum lost: Ignore");
+                    set_servant_health(pcmk_health_transient, LOG_INFO, "Quorum lost: Ignore");
                     break;
                 case no_quorum_suicide:
-                    LOGONCE(pcmk_health_unclean, LOG_INFO, "Quorum lost: Self-fence");
+                    set_servant_health(pcmk_health_unclean, LOG_INFO, "Quorum lost: Self-fence");
                     break;
             }
         }
     }
 
   out:
-    set_pcmk_health(healthy);
+    notify_parent();
 
     return;
-}
-
-static void
-set_pcmk_health(enum pcmk_health healthy)
-{
-	pcmk_healthy = healthy;
-	notify_parent(pcmk_healthy);
 }
 
 static crm_trigger_t *refresh_trigger = NULL;
