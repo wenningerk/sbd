@@ -403,7 +403,6 @@ void inquisitor_child(void)
 	struct timespec timeout;
 	int exiting = 0;
 	int decoupled = 0;
-	int pcmk_healthy = 0;
 	int pcmk_override = 0;
 	time_t latency;
 	struct timespec t_last_tickle, t_now;
@@ -441,6 +440,8 @@ void inquisitor_child(void)
 	clock_gettime(CLOCK_MONOTONIC, &t_last_tickle);
 
 	while (1) {
+                bool tickle = 0;
+                bool can_detach = 0;
 		int good_servants = 0;
 
 		sig = sigtimedwait(&procmask, &sinfo, &timeout);
@@ -461,15 +462,16 @@ void inquisitor_child(void)
 			}
 		} else if (sig == SIG_PCMK_UNHEALTHY) {
 			s = lookup_servant_by_pid(sinfo.si_pid);
-			if (sbd_is_disk(s) == false) {
-				if (pcmk_healthy != 0) {
-					cl_log(LOG_WARNING, "Pacemaker health check: UNHEALTHY");
-				}
-				pcmk_healthy = 0;
-				clock_gettime(CLOCK_MONOTONIC, &s->t_last);
-			} else {
+			if (sbd_is_disk(s)) {
 				cl_log(LOG_WARNING, "Ignoring SIG_PCMK_UNHEALTHY from unknown source");
+
+                        } else {
+                            if(s->outdated == 0) {
+                                cl_log(LOG_WARNING, "%s health check: UNHEALTHY", s->devname);
+                            }
+                            s->t_last.tv_sec = 1;
 			}
+
 		} else if (sig == SIG_IO_FAIL) {
 			s = lookup_servant_by_pid(sinfo.si_pid);
 			if (s) {
@@ -480,15 +482,10 @@ void inquisitor_child(void)
 		} else if (sig == SIG_LIVENESS) {
 			s = lookup_servant_by_pid(sinfo.si_pid);
 			if (s) {
-                                if (sbd_is_disk(s) == false) {
-					if (pcmk_healthy != 1) {
-						cl_log(LOG_INFO, "Pacemaker health check: OK");
-					}
-					pcmk_healthy = 1;
-				};
 				s->first_start = 0;
 				clock_gettime(CLOCK_MONOTONIC, &s->t_last);
 			}
+
 		} else if (sig == SIG_TEST) {
 		} else if (sig == SIGUSR1) {
 			if (exiting)
@@ -515,62 +512,77 @@ void inquisitor_child(void)
 
 			if (age < (int)(timeout_io+timeout_loop)) {
 				if (sbd_is_disk(s)) {
-					good_servants++;
+                                    good_servants++;
+				}
+                                if (!s->outdated) {
+                                    cl_log(LOG_WARNING, "Servant %s is healthy (age: %d)", s->devname, age);
 				}
 				s->outdated = 0;
+
 			} else if (!s->outdated) {
-				if (sbd_is_disk(s) == false) {
-					/* If the state is outdated, we
-					 * override the last reported
-					 * state */
-					pcmk_healthy = 0;
-					cl_log(LOG_WARNING, "Pacemaker state outdated (age: %d)",
-						age);
-				} else if (!s->restart_blocked) {
-					cl_log(LOG_WARNING, "Servant for %s outdated (age: %d)",
-						s->devname, age);
+                                if (!s->restart_blocked) {
+                                    cl_log(LOG_WARNING, "Servant %s is outdated (age: %d)", s->devname, age);
 				}
-				s->outdated = 1;
+                                s->outdated = 1;
 			}
 		}
 
-                if(!decoupled && check_pcmk && disk_count == 0) {
-                    pcmk_healthy = TRUE;
+                if(!decoupled && disk_count == 0) {
+                    /* If there are no disks, always tickle until we first hear from pacemaker */
+                    tickle = 1;
+
+                } else if (disk_count && quorum_read(good_servants)) {
+                    /* There are disks and we're connected to the majority of them */
+                    tickle = 1;
+                    can_detach = 1;
+                    pcmk_override = 0;
+
+                } else {
+                    /* There /might/ be disks but we're NOT connected to the majority of them anyway.
+                     * We can stay alive if ALL the non-disk servants are healthy.
+                     */
+
+                    if(disk_count) {
+                        cl_log(LOG_DEBUG, "Not enough good servants: %d", good_servants);
+                    }
+                    
+                    tickle = 1;
+                    for (s = servants_leader; s; s = s->next) {
+                        if (sbd_is_disk(s) == false) {
+                            if(s->outdated) {
+                                tickle = 0;
+                            }
+                        }
+                    }
+                        
+                    if(tickle) {
+                        can_detach = 1;
+
+                        if(disk_count && !pcmk_override) {
+                            cl_log(LOG_WARNING, "Majority of devices lost - surviving on pacemaker");
+                            pcmk_override = 1; /* Just to ensure the message is only logged once */
+                        }
+                    }
                 }
+ 
+                /* cl_log(LOG_DEBUG, "Tickle: q=%d, g=%d, p=%d, s=%d", */
+                /*        quorum_read(good_servants), good_servants, tickle, disk_count); */
 
-                if (quorum_read(good_servants)
-                    || (check_pcmk && pcmk_healthy)
-                    || (check_pcmk == FALSE && disk_count == 0)) {
-			if (!decoupled) {
-                                cl_log(LOG_DEBUG, "Decoupling");
-				if (inquisitor_decouple() < 0) {
-					servants_kill();
-					exiting = 1;
-					continue;
-				} else {
-					decoupled = 1;
-				}
-			}
-
-			if (disk_count == 0) {
-                                /* cl_log(LOG_DEBUG, "Stand-alone mode"); */
-
-                        } else if (!quorum_read(good_servants)) {
-                            cl_log(LOG_DEBUG, "Not enough good servants: %d", good_servants);
-				if (!pcmk_override) {
-					cl_log(LOG_WARNING, "Majority of devices lost - surviving on pacemaker");
-					pcmk_override = 1; /* Just to ensure the message is only logged once */
-				}
-
-			} else {
-				pcmk_override = 0;
-			}
-
-			watchdog_tickle();
-			clock_gettime(CLOCK_MONOTONIC, &t_last_tickle);
-                        /* cl_log(LOG_DEBUG, "Tickle: q=%d, g=%d, p=%d, s=%d", */
-                        /*        quorum_read(good_servants), good_servants, pcmk_healthy, disk_count); */
-		}
+                if(tickle) {
+                    watchdog_tickle();
+                    clock_gettime(CLOCK_MONOTONIC, &t_last_tickle);
+                }
+                
+                if (!decoupled && can_detach) {
+                    cl_log(LOG_DEBUG, "Decoupling");
+                    if (inquisitor_decouple() < 0) {
+                        servants_kill();
+                        exiting = 1;
+                        continue;
+                    } else {
+                        decoupled = 1;
+                    }
+                }
 
 		/* Note that this can actually be negative, since we set
 		 * last_tickle after we set now. */
