@@ -46,7 +46,7 @@ sbd_plugin_membership_dispatch(cpg_handle_t handle,
         set_servant_health(pcmk_health_online, LOG_INFO,
                            "Connected to %s", name_for_cluster_type(get_cluster_type()));
     } else {
-        set_servant_health(pcmk_health_unclean, LOG_INFO,
+        set_servant_health(pcmk_health_unclean, LOG_WARNING,
                            "Broken %s message", name_for_cluster_type(get_cluster_type()));
     }
     notify_parent();
@@ -66,7 +66,7 @@ sbd_cpg_membership_dispatch(cpg_handle_t handle,
         set_servant_health(pcmk_health_online, LOG_INFO,
                            "Connected to %s", name_for_cluster_type(get_cluster_type()));
     } else {
-        set_servant_health(pcmk_health_unclean, LOG_INFO,
+        set_servant_health(pcmk_health_unclean, LOG_WARNING,
                            "Empty %s membership", name_for_cluster_type(get_cluster_type()));
     }
     notify_parent();
@@ -97,7 +97,9 @@ notify_timer_cb(gpointer data)
 static void
 sbd_membership_destroy(gpointer user_data)
 {
-    cl_log(LOG_ERR, "Connection to %s terminated", name_for_cluster_type(get_cluster_type()));
+    cl_log(LOG_WARNING, "Lost connection to %s", name_for_cluster_type(get_cluster_type()));
+    set_servant_health(pcmk_health_unclean, LOG_ERR, "Cluster connection terminated");
+    notify_parent();
     exit(1);
 }
 
