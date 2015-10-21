@@ -1009,6 +1009,9 @@ int main(int argc, char **argv, char **envp)
                 if (check_pcmk) {
                         recruit_servant("pcmk", 0);
                         servant_count--;
+#if SUPPORT_PLUGIN
+                        check_cluster = 1;
+#endif
                 }
 
                 cl_log(LOG_INFO, "Turning on cluster checks: %d", check_cluster);

@@ -135,8 +135,10 @@ servant_cluster(const char *diskname, int mode, const void* argp)
             cluster.destroy = sbd_membership_destroy;
             cluster.cpg.cpg_confchg_fn = sbd_cpg_membership_dispatch;
             break;
-            break;
 #endif
+        case pcmk_cluster_unknown:
+            /* Go looking for the pacemaker remote process */
+            break;
 
         default:
             cl_log(LOG_ERR, "Unsupported cluster type: %s", name_for_cluster_type(cluster_stack));
