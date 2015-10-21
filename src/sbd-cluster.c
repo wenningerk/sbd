@@ -32,7 +32,6 @@
 //undef SUPPORT_PLUGIN
 //define SUPPORT_PLUGIN 1
 
-extern int servant_count;
 static int reconnect_msec = 1000;
 static GMainLoop *mainloop = NULL;
 static guint notify_timer = 0;

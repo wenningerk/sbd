@@ -58,7 +58,7 @@
 #include <crm/cib.h>
 #include <crm/pengine/status.h>
 
-extern int servant_count;
+extern int disk_count;
 
 static void clean_up(int rc);
 static void crm_diff_update(const char *event, xmlNode * msg);
@@ -206,7 +206,8 @@ compute_status(pe_working_set_t * data_set)
 
     if (data_set->dc_node == NULL) {
         set_servant_health(pcmk_health_transient, LOG_INFO, "We don't have a DC right now.");
-        goto out;
+        notify_parent();
+        return;
     }
 
 
@@ -227,43 +228,37 @@ compute_status(pe_working_set_t * data_set)
         set_servant_health(pcmk_health_shutdown, LOG_WARNING, "Node state: shutting down");
 #endif
 
+    } else if (data_set->flags & pe_flag_have_quorum) {
+        set_servant_health(pcmk_health_online, LOG_INFO, "Node state: online");
+        ever_had_quorum = TRUE;
+
+    } else if(disk_count > 0) {
+        set_servant_health(pcmk_health_noquorum, LOG_WARNING, "Quorum lost");
+
+    } else if(ever_had_quorum == FALSE) {
+        set_servant_health(pcmk_health_online, LOG_INFO, "We do not have quorum yet");
+
     } else {
-
-        if (data_set->flags & pe_flag_have_quorum) {
-            set_servant_health(pcmk_health_online, LOG_INFO, "Node state: online");
-            ever_had_quorum = TRUE;
-
-        } else if(servant_count > 0) {
-            set_servant_health(pcmk_health_noquorum, LOG_WARNING, "Quorum lost");
-            goto out;
-
-        } else if(ever_had_quorum == FALSE) {
-            set_servant_health(pcmk_health_online, LOG_INFO, "We do not have quorum yet");
-
-        } else {
-            /* We lost quorum, and there are no disks present
-             * Setting healthy > 2 here will result in us self-fencing
-             */
-            switch (data_set->no_quorum_policy) {
-                case no_quorum_freeze:
-                    set_servant_health(pcmk_health_transient, LOG_INFO, "Quorum lost: Freeze resources");
-                    break;
-                case no_quorum_stop:
-                    set_servant_health(pcmk_health_transient, LOG_INFO, "Quorum lost: Stop ALL resources");
-                    break;
-                case no_quorum_ignore:
-                    set_servant_health(pcmk_health_transient, LOG_INFO, "Quorum lost: Ignore");
-                    break;
-                case no_quorum_suicide:
-                    set_servant_health(pcmk_health_unclean, LOG_INFO, "Quorum lost: Self-fence");
-                    break;
-            }
+        /* We lost quorum, and there are no disks present
+         * Setting healthy > 2 here will result in us self-fencing
+         */
+        switch (data_set->no_quorum_policy) {
+            case no_quorum_freeze:
+                set_servant_health(pcmk_health_transient, LOG_INFO, "Quorum lost: Freeze resources");
+                break;
+            case no_quorum_stop:
+                set_servant_health(pcmk_health_transient, LOG_INFO, "Quorum lost: Stop ALL resources");
+                break;
+            case no_quorum_ignore:
+                set_servant_health(pcmk_health_transient, LOG_INFO, "Quorum lost: Ignore");
+                break;
+            case no_quorum_suicide:
+                set_servant_health(pcmk_health_unclean, LOG_INFO, "Quorum lost: Self-fence");
+                break;
         }
     }
 
-  out:
     notify_parent();
-
     return;
 }
 

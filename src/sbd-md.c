@@ -28,7 +28,7 @@
 #define SLOT_TO_SECTOR(slot) (1+slot*2)
 #define MBOX_TO_SECTOR(mbox) (2+mbox*2)
 
-extern int servant_count;
+extern int disk_count;
 static int servant_inform_parent = 0;
 
 /* These have to match the values in the header of the partition */
@@ -820,10 +820,12 @@ int ping_via_slots(const char *name, struct servants_list_item *servants)
 	sigprocmask(SIG_BLOCK, &procmask, NULL);
 
 	for (s = servants; s; s = s->next) {
-            s->pid = assign_servant(s->devname, &slot_ping_wrapper, 0, (const void*)name);
-	}
+            if(sbd_is_disk(s)) {
+                s->pid = assign_servant(s->devname, &slot_ping_wrapper, 0, (const void*)name);
+            }
+        }
 
-	while (servants_finished < servant_count) {
+	while (servants_finished < disk_count) {
 		sig = sigwaitinfo(&procmask, &sinfo);
 		if (sig == SIGCHLD) {
 			while ((pid = wait(&status))) {
@@ -831,7 +833,7 @@ int ping_via_slots(const char *name, struct servants_list_item *servants)
 					break;
 				} else {
 					s = lookup_servant_by_pid(pid);
-					if (s) {
+					if (s && sbd_is_disk(s)) {
 						servants_finished++;
 					}
 				}
@@ -843,7 +845,7 @@ int ping_via_slots(const char *name, struct servants_list_item *servants)
 
 int quorum_write(int good_servants)
 {
-	return (good_servants > servant_count/2);
+	return (good_servants > disk_count/2);
 }
 
 int messenger(const char *name, const char *msg, struct servants_list_item *servants)
@@ -867,7 +869,7 @@ int messenger(const char *name, const char *msg, struct servants_list_item *serv
 	}
 	
 	while (!(quorum_write(successful_delivery) || 
-		(servants_finished == servant_count))) {
+		(servants_finished == disk_count))) {
 		sig = sigwaitinfo(&procmask, &sinfo);
 		if (sig == SIGCHLD) {
 			while ((pid = waitpid(-1, &status, WNOHANG))) {

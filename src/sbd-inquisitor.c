@@ -24,6 +24,7 @@ static struct servants_list_item *servants_leader = NULL;
 
 int	check_pcmk = 0;
 int	check_cluster = 0;
+int	disk_count	= 0;
 int	servant_count	= 0;
 int	servant_restart_interval = 5;
 int	servant_restart_count = 1;
@@ -71,6 +72,9 @@ void recruit_servant(const char *devname, pid_t pid)
 	}
 
 	servant_count++;
+        if(sbd_is_disk(s)) {
+            disk_count++;
+        }
 }
 
 int assign_servant(const char* devname, functionp_t functionp, int mode, const void* argp)
@@ -384,8 +388,8 @@ sbd_unlock_pidfile(const char *filename)
 
 int quorum_read(int good_servants)
 {
-	if (servant_count > 2) 
-		return (good_servants > servant_count/2);
+	if (disk_count > 2) 
+		return (good_servants > disk_count/2);
 	else
 		return (good_servants > 0);
 }
@@ -530,13 +534,13 @@ void inquisitor_child(void)
 			}
 		}
 
-                if(!decoupled && check_pcmk && servant_count == 0) {
+                if(!decoupled && check_pcmk && disk_count == 0) {
                     pcmk_healthy = TRUE;
                 }
 
                 if (quorum_read(good_servants)
                     || (check_pcmk && pcmk_healthy)
-                    || (check_pcmk == FALSE && servant_count == 0)) {
+                    || (check_pcmk == FALSE && disk_count == 0)) {
 			if (!decoupled) {
                                 cl_log(LOG_DEBUG, "Decoupling");
 				if (inquisitor_decouple() < 0) {
@@ -548,7 +552,7 @@ void inquisitor_child(void)
 				}
 			}
 
-			if (servant_count == 0) {
+			if (disk_count == 0) {
                                 /* cl_log(LOG_DEBUG, "Stand-alone mode"); */
 
                         } else if (!quorum_read(good_servants)) {
@@ -565,7 +569,7 @@ void inquisitor_child(void)
 			watchdog_tickle();
 			clock_gettime(CLOCK_MONOTONIC, &t_last_tickle);
                         /* cl_log(LOG_DEBUG, "Tickle: q=%d, g=%d, p=%d, s=%d", */
-                        /*        quorum_read(good_servants), good_servants, pcmk_healthy, servant_count); */
+                        /*        quorum_read(good_servants), good_servants, pcmk_healthy, disk_count); */
 		}
 
 		/* Note that this can actually be negative, since we set
@@ -945,7 +949,7 @@ int main(int argc, char **argv, char **envp)
 		cl_log(LOG_INFO, "Watchdog disabled.");
 	}
 
-	if (servant_count > 3) {
+	if (disk_count > 3) {
 		fprintf(stderr, "You can specify up to 3 devices via the -d option.\n");
 		exit_status = -1;
 		goto out;
@@ -984,7 +988,7 @@ int main(int argc, char **argv, char **envp)
             exit_status = ping_via_slots(argv[optind + 1], servants_leader);
 
         } else if (strcmp(argv[optind], "watch") == 0) {
-                if(servant_count > 0) {
+                if(disk_count > 0) {
                     /* If no devices are specified, its not an error to be unable to find one */
                     open_any_device(servants_leader);
                 }
@@ -1008,7 +1012,6 @@ int main(int argc, char **argv, char **envp)
                 cl_log(LOG_INFO, "Turning on pacemaker checks: %d", check_pcmk);
                 if (check_pcmk) {
                         recruit_servant("pcmk", 0);
-                        servant_count--;
 #if SUPPORT_PLUGIN
                         check_cluster = 1;
 #endif
@@ -1017,7 +1020,6 @@ int main(int argc, char **argv, char **envp)
                 cl_log(LOG_INFO, "Turning on cluster checks: %d", check_cluster);
                 if (check_cluster) {
                         recruit_servant("cluster", 0);
-                        servant_count--;
                 }
 
                 exit_status = inquisitor();
