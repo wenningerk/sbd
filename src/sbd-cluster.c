@@ -35,6 +35,7 @@
 static int reconnect_msec = 1000;
 static GMainLoop *mainloop = NULL;
 static guint notify_timer = 0;
+static crm_cluster_t cluster;
 
 #if SUPPORT_PLUGIN
 static void
@@ -77,6 +78,7 @@ static gboolean
 notify_timer_cb(gpointer data)
 {
     enum cluster_type_e stack = get_cluster_type();
+
     switch (stack) {
         case pcmk_cluster_classic_ais:
             send_cluster_text(crm_class_quorum, NULL, TRUE, NULL, crm_msg_ais);
@@ -95,12 +97,31 @@ notify_timer_cb(gpointer data)
 }
 
 static void
+sbd_membership_connect(void)
+{
+    cl_log(LOG_NOTICE, "Attempting connection to %s", name_for_cluster_type(get_cluster_type()));
+    
+    while (!crm_cluster_connect(&cluster)) {
+        cl_log(LOG_INFO, "Failed, retrying in %ds", reconnect_msec / 1000);
+        sleep(reconnect_msec / 1000);
+    }
+
+    set_servant_health(pcmk_health_transient, LOG_NOTICE, "Connected");
+    notify_parent();
+
+    notify_timer_cb(NULL);
+}
+
+static void
 sbd_membership_destroy(gpointer user_data)
 {
     cl_log(LOG_WARNING, "Lost connection to %s", name_for_cluster_type(get_cluster_type()));
+
     set_servant_health(pcmk_health_unclean, LOG_ERR, "Cluster connection terminated");
     notify_parent();
-    exit(1);
+
+    /* Attempt to reconnect, the watchdog will take the node down if the problem isn't transient */
+    sbd_membership_connect();
 }
 
 static void
@@ -118,7 +139,6 @@ cluster_shutdown(int nsig)
 int
 servant_cluster(const char *diskname, int mode, const void* argp)
 {
-    crm_cluster_t cluster;
     enum cluster_type_e cluster_stack = get_cluster_type();
 
     switch (cluster_stack) {
@@ -147,16 +167,10 @@ servant_cluster(const char *diskname, int mode, const void* argp)
             break;
     }
 
-    while (!crm_cluster_connect(&cluster)) {
-        cl_log(LOG_INFO, "Waiting to sign in with cluster ...");
-        sleep(reconnect_msec / 1000);
-    }
+    sbd_membership_connect();
 
     /* stonith_our_uname = cluster.uname; */
     /* stonith_our_uuid = cluster.uuid; */
-
-    set_servant_health(pcmk_health_transient, LOG_INFO,
-                       "Empty %s membership", name_for_cluster_type(get_cluster_type()));
 
     mainloop = g_main_new(FALSE);
     notify_timer = g_timeout_add(timeout_loop * 1000, notify_timer_cb, NULL);
