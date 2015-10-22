@@ -537,7 +537,7 @@ void inquisitor_child(void)
                     can_detach = 1;
                     pcmk_override = 0;
 
-                } else {
+                } else if(servant_count > disk_count) {
                     /* There /might/ be disks but we're NOT connected to the majority of them anyway.
                      * We can stay alive if ALL the non-disk servants are healthy.
                      */

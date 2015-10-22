@@ -163,7 +163,6 @@ servant_cluster(const char *diskname, int mode, const void* argp)
 
     mainloop_add_signal(SIGTERM, cluster_shutdown);
     mainloop_add_signal(SIGINT, cluster_shutdown);
-
     
     g_main_run(mainloop);
     g_main_destroy(mainloop);
