@@ -37,16 +37,12 @@ int parse_device_line(const char *line);
 static bool
 sbd_is_disk(struct servants_list_item *servant) 
 {
-    if (servant == NULL) {
+    if (servant == NULL
+        || servant->devname == NULL
+        || servant->devname[0] == '/') {
         return true;
-
-    } else if (strcmp(servant->devname, "pcmk") == 0) {
-        return false;
-
-    } else if (strcmp(servant->devname, "cluster") == 0) {
-        return false;
     }
-    return true;
+    return false;
 }
 
 void recruit_servant(const char *devname, pid_t pid)
