@@ -1,4 +1,4 @@
-AM_CFLAGS = -D_GNU_SOURCE -DCHECK_AIS
+AM_CFLAGS = -D_GNU_SOURCE -DCHECK_AIS -DSBINDIR=\"$(sbindir)\"
 AM_CPPFLAGS =  -I$(includedir)/pacemaker  \
 		$(glib_CFLAGS)
 
