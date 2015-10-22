@@ -22,6 +22,7 @@
 
 static struct servants_list_item *servants_leader = NULL;
 
+int     disk_priority = 1;
 int	check_pcmk = 0;
 int	check_cluster = 0;
 int	disk_count	= 0;
@@ -386,6 +387,26 @@ sbd_unlock_pidfile(const char *filename)
 	return unlink(lf_name);
 }
 
+int cluster_alive(void)
+{
+    int alive = 1;
+    struct servants_list_item* s;
+
+    if(servant_count == disk_count) {
+        return 0;
+    }
+
+    for (s = servants_leader; s; s = s->next) {
+        if (sbd_is_disk(s) == false) {
+            if(s->outdated) {
+                alive = 0;
+            }
+        }
+    }
+
+    return alive;
+}
+
 int quorum_read(int good_servants)
 {
 	if (disk_count > 2) 
@@ -403,6 +424,7 @@ void inquisitor_child(void)
 	struct timespec timeout;
 	int exiting = 0;
 	int decoupled = 0;
+	int cluster_appeared = 0;
 	int pcmk_override = 0;
 	time_t latency;
 	struct timespec t_last_tickle, t_now;
@@ -527,44 +549,49 @@ void inquisitor_child(void)
 			}
 		}
 
-                if(!decoupled && disk_count == 0) {
-                    /* If there are no disks, always tickle until we first hear from pacemaker */
-                    tickle = 1;
+                if((disk_priority == 1 && disk_count) || servant_count == disk_count) {
+                    if (quorum_read(good_servants)) {
+                        /* There are disks and we're connected to the majority of them */
+                        tickle = 1;
+                        can_detach = 1;
+                        pcmk_override = 0;
 
-                } else if (disk_count && quorum_read(good_servants)) {
-                    /* There are disks and we're connected to the majority of them */
-                    tickle = 1;
-                    can_detach = 1;
-                    pcmk_override = 0;
-
-                } else if(servant_count > disk_count) {
-                    /* There /might/ be disks but we're NOT connected to the majority of them anyway.
-                     * We can stay alive if ALL the non-disk servants are healthy.
-                     */
-
-                    if(disk_count) {
-                        cl_log(LOG_DEBUG, "Not enough good servants: %d", good_servants);
-                    }
+                    } else if (servant_count > disk_count && cluster_alive()) {
+                        tickle = 1;
                     
-                    tickle = 1;
-                    for (s = servants_leader; s; s = s->next) {
-                        if (sbd_is_disk(s) == false) {
-                            if(s->outdated) {
-                                tickle = 0;
-                            }
+                        if(!pcmk_override) {
+                            cl_log(LOG_WARNING, "Majority of devices lost - surviving on pacemaker");
+                            pcmk_override = 1; /* Only log this message once */
                         }
                     }
-                        
-                    if(tickle) {
+
+                } else if(disk_count == 0) {
+                    /* NO disks, everything is up to the cluster */
+                    if(cluster_alive()) {
+                        tickle = 1;
                         can_detach = 1;
 
-                        if(disk_count && !pcmk_override) {
-                            cl_log(LOG_WARNING, "Majority of devices lost - surviving on pacemaker");
-                            pcmk_override = 1; /* Just to ensure the message is only logged once */
-                        }
+                    } else if(!decoupled) {
+                        /* Keep the cluster alive until the cluster comes up */
+                        tickle = 1;
                     }
+
+                } else if(cluster_alive() && quorum_read(good_servants)) {
+                    /* Both disk and cluster servants are healthy */
+                    tickle = 1;
+                    can_detach = 1;
+                    cluster_appeared = 1;
+
+                } else if(quorum_read(good_servants)) {
+                    /* The cluster takes priority but only once
+                     * connected for the first time.
+                     *
+                     * Until then, we tickle based on disk quorum.
+                     */
+                    can_detach = 1;
+                    tickle = !cluster_appeared;
                 }
- 
+
                 /* cl_log(LOG_DEBUG, "Tickle: q=%d, g=%d, p=%d, s=%d", */
                 /*        quorum_read(good_servants), good_servants, tickle, disk_count); */
 
@@ -572,8 +599,11 @@ void inquisitor_child(void)
                     watchdog_tickle();
                     clock_gettime(CLOCK_MONOTONIC, &t_last_tickle);
                 }
-                
+
                 if (!decoupled && can_detach) {
+                    /* We only do this at the point either the disk or
+                     * cluster servants become healthy
+                     */
                     cl_log(LOG_DEBUG, "Decoupling");
                     if (inquisitor_decouple() < 0) {
                         servants_kill();
@@ -605,6 +635,7 @@ void inquisitor_child(void)
 				cl_log(LOG_ERR, "SBD: DEBUG MODE: Would have fenced due to timeout!");
 			}
 		}
+
 		if (timeout_watchdog_warn && (latency > (int)timeout_watchdog_warn)) {
 			cl_log(LOG_WARNING,
 			       "Latency: No liveness for %d s exceeds threshold of %d s (healthy servants: %d)",
@@ -791,6 +822,7 @@ int main(int argc, char **argv, char **envp)
         value = getenv("SBD_PACEMAKER");
         if(value) {
             check_pcmk = crm_is_true(value);
+            check_cluster = crm_is_true(value);
         }
         cl_log(LOG_INFO, "Enable pacemaker checks: %d (%s)", (int)check_pcmk, value?value:"default");
 
@@ -829,7 +861,7 @@ int main(int argc, char **argv, char **envp)
         }
         cl_log(LOG_DEBUG, "Start delay: %d (%s)", (int)start_delay, value?value:"default");
 
-	while ((c = getopt(argc, argv, "C:DPRTWZhvw:d:n:p:1:2:3:4:5:t:I:F:S:s:")) != -1) {
+	while ((c = getopt(argc, argv, "czC:DPRTWZhvw:d:n:p:1:2:3:4:5:t:I:F:S:s:")) != -1) {
 		switch (c) {
 		case 'D':
 			break;
@@ -889,6 +921,9 @@ int main(int argc, char **argv, char **envp)
 			break;
 		case 'P':
 			check_pcmk = 1;
+			break;
+		case 'z':
+			disk_priority = 0;
 			break;
 		case 'n':
 			local_uname = strdup(optarg);
