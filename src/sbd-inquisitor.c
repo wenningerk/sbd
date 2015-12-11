@@ -34,7 +34,7 @@ char*	pidfile = NULL;
 
 int parse_device_line(const char *line);
 
-static bool
+bool
 sbd_is_disk(struct servants_list_item *servant) 
 {
     if (servant == NULL
