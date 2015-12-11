@@ -189,4 +189,4 @@ void set_proc_title(const char *fmt,...);
 extern int servant_health;
 void set_servant_health(enum pcmk_health state, int level, char const *format, ...) __attribute__ ((__format__ (__printf__, 3, 4)));
 
-bool sbd_is_disk(struct servants_list_item *servant) 
+bool sbd_is_disk(struct servants_list_item *servant);
