@@ -76,6 +76,7 @@ rm -rf ${RPM_BUILD_ROOT}%{_libdir}/stonith
 install -D -m 0755 src/sbd.sh $RPM_BUILD_ROOT/usr/share/sbd/sbd.sh
 %if %{defined _unitdir}
 install -D -m 0644 src/sbd.service $RPM_BUILD_ROOT/%{_unitdir}/sbd.service
+install -D -m 0644 src/sbd_remote.service $RPM_BUILD_ROOT/%{_unitdir}/sbd_remote.service
 %endif
 
 mkdir -p ${RPM_BUILD_ROOT}%{_sysconfdir}/sysconfig
@@ -87,12 +88,15 @@ rm -rf %{buildroot}
 %if %{defined _unitdir}
 %post
 %systemd_post sbd.service
+%systemd_post sbd_remote.service
 
 %preun
 %systemd_preun sbd.service
+%systemd_preun sbd_remote.service
 
 %postun
 %systemd_postun sbd.service
+%systemd_postun sbd_remote.service
 %endif
 
 %files
@@ -104,6 +108,7 @@ rm -rf %{buildroot}
 %doc %{_mandir}/man8/sbd*
 %if %{defined _unitdir}
 %{_unitdir}/sbd.service
+%{_unitdir}/sbd_remote.service
 %endif
 %doc COPYING
 
