@@ -160,7 +160,7 @@ void servant_start(struct servants_list_item *s)
 
 	} else if(strcmp("cluster", s->devname) == 0) {
 		DBGLOG(LOG_INFO, "Starting Cluster servant");
-		/* s->pid = assign_servant(s->devname, servant_cluster, start_mode, NULL); */
+		s->pid = assign_servant(s->devname, servant_cluster, start_mode, NULL);
 
         } else {
             cl_log(LOG_ERR, "Unrecognized servant: %s", s->devname);
