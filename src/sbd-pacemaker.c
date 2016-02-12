@@ -384,6 +384,7 @@ servant_pcmk(const char *diskname, int mode, const void* argp)
 {
 	int exit_code = 0;
 
+        crm_system_name = strdup("sbd:pcmk");
 	cl_log(LOG_INFO, "Monitoring Pacemaker health");
 	set_proc_title("sbd: watcher: Pacemaker");
         setenv("PCMK_watchdog", "true", 1);

@@ -354,6 +354,7 @@ servant_cluster(const char *diskname, int mode, const void* argp)
 {
     enum cluster_type_e cluster_stack = get_cluster_type();
 
+    crm_system_name = strdup("sbd:cluster");
     cl_log(LOG_INFO, "Monitoring Cluster health");
     set_proc_title("sbd: watcher: Cluster");
 
