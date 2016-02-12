@@ -383,7 +383,7 @@ sbd_unlock_pidfile(const char *filename)
 	return unlink(lf_name);
 }
 
-int cluster_alive(void)
+int cluster_alive(bool all)
 {
     int alive = 1;
     struct servants_list_item* s;
@@ -396,6 +396,8 @@ int cluster_alive(void)
         if (sbd_is_disk(s) == false) {
             if(s->outdated) {
                 alive = 0;
+            } else if(all == false) {
+                return 1;
             }
         }
     }
@@ -545,14 +547,33 @@ void inquisitor_child(void)
 			}
 		}
 
-                if((disk_priority == 1 && disk_count) || servant_count == disk_count) {
+                if(disk_count == 0) {
+                    /* NO disks, everything is up to the cluster */
+
+                    if(cluster_alive(true)) {
+                        /* We LIVE! */
+                        tickle = 1;
+                        can_detach = 1;
+                        cluster_appeared = 1;
+
+                    } else if(cluster_appeared == 0 && cluster_alive(false)) {
+                        /* On the way up, detatch and arm the watchdog */
+                        can_detach = 1;
+                        tickle = 1;
+
+                    } else if(!decoupled) {
+                        /* Stay alive until the cluster comes up */
+                        tickle = !cluster_appeared;
+                    }
+
+                } else if(disk_priority == 1 || servant_count == disk_count) {
                     if (quorum_read(good_servants)) {
                         /* There are disks and we're connected to the majority of them */
                         tickle = 1;
                         can_detach = 1;
                         pcmk_override = 0;
 
-                    } else if (servant_count > disk_count && cluster_alive()) {
+                    } else if (servant_count > disk_count && cluster_alive(true)) {
                         tickle = 1;
                     
                         if(!pcmk_override) {
@@ -561,18 +582,7 @@ void inquisitor_child(void)
                         }
                     }
 
-                } else if(disk_count == 0) {
-                    /* NO disks, everything is up to the cluster */
-                    if(cluster_alive()) {
-                        tickle = 1;
-                        can_detach = 1;
-
-                    } else if(!decoupled) {
-                        /* Keep the cluster alive until the cluster comes up */
-                        tickle = 1;
-                    }
-
-                } else if(cluster_alive() && quorum_read(good_servants)) {
+                } else if(cluster_alive(true) && quorum_read(good_servants)) {
                     /* Both disk and cluster servants are healthy */
                     tickle = 1;
                     can_detach = 1;

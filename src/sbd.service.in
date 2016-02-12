@@ -1,6 +1,6 @@
 [Unit]
 Description=Shared-storage based fencing daemon
-Before=pacemaker.service corosync.service
+Before=pacemaker.service
 After=systemd-modules-load.service iscsi.service
 PartOf=corosync.service
 RefuseManualStop=true
