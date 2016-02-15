@@ -69,7 +69,7 @@ void recruit_servant(const char *devname, pid_t pid)
 	}
 
 	servant_count++;
-        if(sbd_is_disk(s)) {
+        if(sbd_is_disk(newbie)) {
             cl_log(LOG_NOTICE, "Monitoring %s", devname);
             disk_count++;
         }
