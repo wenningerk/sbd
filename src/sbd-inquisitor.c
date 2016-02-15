@@ -562,11 +562,14 @@ void inquisitor_child(void)
                         can_detach = 1;
                         cluster_appeared = 1;
 
-                    } else if(cluster_appeared == 0 && cluster_alive(false)) {
-                        /* On the way up, detatch and arm the watchdog */
-                        cl_log(LOG_NOTICE, "Partial cluster detected, detatching");
+                    } else if(cluster_alive(false)) {
+                        if(!decoupled) {
+                            /* On the way up, detatch and arm the watchdog */
+                            cl_log(LOG_NOTICE, "Partial cluster detected, detatching");
+                        }
+
                         can_detach = 1;
-                        tickle = 1;
+                        tickle = !cluster_appeared;
 
                     } else if(!decoupled) {
                         /* Stay alive until the cluster comes up */
