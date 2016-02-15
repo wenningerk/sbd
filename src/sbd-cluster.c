@@ -46,6 +46,7 @@ static guint notify_timer = 0;
 static crm_cluster_t cluster;
 static gboolean sbd_remote_check(gpointer user_data);
 static long unsigned int find_pacemaker_remote(void);
+static void sbd_membership_destroy(gpointer user_data);
 
 #if SUPPORT_PLUGIN
 static void
@@ -118,6 +119,17 @@ sbd_membership_connect(void)
     bool connected = false;
 
     cl_log(LOG_NOTICE, "Attempting cluster connection");
+
+    cluster.destroy = sbd_membership_destroy;
+
+#if SUPPORT_PLUGIN
+    cluster.cpg.cpg_deliver_fn = sbd_plugin_membership_dispatch;
+#endif
+
+#if SUPPORT_COROSYNC
+    cluster.cpg.cpg_confchg_fn = sbd_cpg_membership_dispatch;
+#endif
+
     while(connected == false) {
 
         enum cluster_type_e stack = get_cluster_type();
@@ -130,6 +142,7 @@ sbd_membership_connect(void)
 
         } else {
             cl_log(LOG_INFO, "Attempting connection to %s", name_for_cluster_type(stack));
+
             if(crm_cluster_connect(&cluster)) {
                 connected = true;
             }
@@ -141,8 +154,7 @@ sbd_membership_connect(void)
         }
     }
 
-    /* Online now or wait for the callback? */
-    set_servant_health(pcmk_health_transient, LOG_NOTICE, "Connected");
+    set_servant_health(pcmk_health_transient, LOG_NOTICE, "Connected, waiting for initial membership");
     notify_parent();
 
     notify_timer_cb(NULL);
@@ -359,35 +371,7 @@ servant_cluster(const char *diskname, int mode, const void* argp)
     cl_log(LOG_INFO, "Monitoring %s cluster health", name_for_cluster_type(cluster_stack));
     set_proc_title("sbd: watcher: Cluster");
 
-    switch (cluster_stack) {
-
-#if SUPPORT_PLUGIN
-        case pcmk_cluster_classic_ais:
-            cluster.destroy = sbd_membership_destroy;
-            cluster.cpg.cpg_deliver_fn = sbd_plugin_membership_dispatch;
-            sbd_membership_connect();
-            break;
-#endif
-
-#if SUPPORT_COROSYNC
-        case pcmk_cluster_corosync:
-        case pcmk_cluster_cman:
-            cluster.destroy = sbd_membership_destroy;
-            cluster.cpg.cpg_confchg_fn = sbd_cpg_membership_dispatch;
-            sbd_membership_connect();
-            break;
-#endif
-
-        case pcmk_cluster_unknown:
-            sbd_membership_connect();
-            break;
-
-        default:
-            cl_log(LOG_ERR, "Unsupported cluster type: %s", name_for_cluster_type(cluster_stack));
-            exit(1);
-            break;
-    }
-
+    sbd_membership_connect();
 
     /* stonith_our_uname = cluster.uname; */
     /* stonith_our_uuid = cluster.uuid; */
