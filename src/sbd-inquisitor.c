@@ -72,6 +72,8 @@ void recruit_servant(const char *devname, pid_t pid)
         if(sbd_is_disk(newbie)) {
             cl_log(LOG_NOTICE, "Monitoring %s", devname);
             disk_count++;
+        } else {
+            newbie->outdated = 1;
         }
 }
 
