@@ -121,16 +121,16 @@ sbd_membership_connect(void)
     while(connected == false) {
 
         enum cluster_type_e stack = get_cluster_type();
-        cl_log(LOG_INFO, "Attempting connection to %s", name_for_cluster_type(stack));
-        if(crm_cluster_connect(&cluster)) {
-            connected = true;
-        }
+        if(get_cluster_type() == pcmk_cluster_unknown) {
 
-        if(connected == false && get_cluster_type() == pcmk_cluster_unknown) {
-            cl_log(LOG_INFO, "Attempting connection to Pacemaker Remote");
-
-            /* Go looking for the pacemaker remote process */
+            /* Nothing is up, go looking for the pacemaker remote process */
             if(find_pacemaker_remote() > 0) {
+                connected = true;
+            }
+
+        } else {
+            cl_log(LOG_INFO, "Attempting connection to %s", name_for_cluster_type(stack));
+            if(crm_cluster_connect(&cluster)) {
                 connected = true;
             }
         }
@@ -140,7 +140,8 @@ sbd_membership_connect(void)
             sleep(reconnect_msec / 1000);
         }
     }
-    
+
+    /* Online now or wait for the callback? */
     set_servant_health(pcmk_health_transient, LOG_NOTICE, "Connected");
     notify_parent();
 
@@ -355,7 +356,7 @@ servant_cluster(const char *diskname, int mode, const void* argp)
     enum cluster_type_e cluster_stack = get_cluster_type();
 
     crm_system_name = strdup("sbd:cluster");
-    cl_log(LOG_INFO, "Monitoring Cluster health");
+    cl_log(LOG_INFO, "Monitoring %s cluster health", name_for_cluster_type(cluster_stack));
     set_proc_title("sbd: watcher: Cluster");
 
     switch (cluster_stack) {
