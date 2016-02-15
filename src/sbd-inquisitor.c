@@ -537,8 +537,8 @@ void inquisitor_child(void)
 				if (sbd_is_disk(s)) {
                                     good_servants++;
 				}
-                                if (!s->outdated) {
-                                    cl_log(LOG_WARNING, "Servant %s is healthy (age: %d)", s->devname, age);
+                                if (s->outdated) {
+                                    cl_log(LOG_NOTICE, "Servant %s is healthy (age: %d)", s->devname, age);
 				}
 				s->outdated = 0;
 
