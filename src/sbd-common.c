@@ -662,7 +662,7 @@ notify_parent(void)
             break;
 
         case pcmk_health_online:
-            DBGLOG(LOG_INFO, "Notifying parent: servant_health");
+            DBGLOG(LOG_INFO, "Notifying parent: healthy");
             sigqueue(ppid, SIG_LIVENESS, signal_value);
             break;
 

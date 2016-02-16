@@ -88,9 +88,14 @@ sbd_cpg_membership_dispatch(cpg_handle_t handle,
 static gboolean
 notify_timer_cb(gpointer data)
 {
-    enum cluster_type_e stack = get_cluster_type();
+    cl_log(LOG_DEBUG, "Refreshing %sstate", remote_node?"remote ":"");
 
-    switch (stack) {
+    if(remote_node) {
+        sbd_remote_check(NULL);
+        return TRUE;
+    }
+
+    switch (get_cluster_type()) {
         case pcmk_cluster_classic_ais:
             send_cluster_text(crm_class_quorum, NULL, TRUE, NULL, crm_msg_ais);
             break;
@@ -101,11 +106,6 @@ notify_timer_cb(gpointer data)
             notify_parent();
             break;
 
-        case pcmk_cluster_unknown:
-            if(remote_node) {
-                sbd_remote_check(NULL);
-            }
-            
         default:
             break;
     }
@@ -254,6 +254,8 @@ sbd_remote_check(gpointer user_data)
 
     int running = 0;
 
+    cl_log(LOG_DEBUG, "Checking pacemaker remote connection: %d/%d", have_proc_pid, remoted_pid);
+    
     if(have_proc_pid == 0) {
         char proc_path[PATH_MAX], exe_path[PATH_MAX];
 
@@ -275,6 +277,7 @@ sbd_remote_check(gpointer user_data)
 
     } else if(have_proc_pid == -1) {
         running = 1;
+        cl_log(LOG_DEBUG, "Poccess %ld is active", remoted_pid);
 
     } else {
         int rc = 0;
@@ -294,11 +297,14 @@ sbd_remote_check(gpointer user_data)
         expected_path[rc] = 0;
 
         if (strcmp(exe_path, expected_path) == 0) {
+            cl_log(LOG_DEBUG, "Poccess %s (%ld) is active",
+                   exe_path, remoted_pid);
             running = 1;
         }
     }
 
   done:
+    
     if(running) {
         set_servant_health(pcmk_health_online, LOG_INFO,
                            "Connected to Pacemaker Remote %lu", (long unsigned int)remoted_pid);
@@ -337,7 +343,9 @@ find_pacemaker_remote(void)
             continue;
         }
 
-        if (strcmp(entry_name, "pacemaker_remoted") == 0) {
+        /* entry_name is truncated to 16 characters including the nul terminator */
+        cl_log(LOG_DEBUG, "Found %s at %lu", entry_name, pid);
+        if (strcmp(entry_name, "pacemaker_remot") == 0) {
             cl_log(LOG_NOTICE, "Found Pacemaker Remote at PID %lu", pid);
             remoted_pid = pid;
             remote_node = true;
