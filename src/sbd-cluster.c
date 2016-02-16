@@ -134,7 +134,7 @@ sbd_membership_connect(void)
 
         enum cluster_type_e stack = get_cluster_type();
         if(get_cluster_type() == pcmk_cluster_unknown) {
-
+            crm_debug("Attempting pacemaker remote connection");
             /* Nothing is up, go looking for the pacemaker remote process */
             if(find_pacemaker_remote() > 0) {
                 connected = true;

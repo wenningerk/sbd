@@ -1,6 +1,5 @@
 [Unit]
 Description=Shared-storage based fencing daemon on pacemaker remote node
-Before=pacemaker_remote.service
 After=systemd-modules-load.service iscsi.service
 PartOf=pacemaker_remote.service
 RefuseManualStop=true
