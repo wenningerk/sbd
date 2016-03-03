@@ -19,8 +19,6 @@
  * Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
  */
 
-#include "sbd.h"
-
 #include <errno.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -34,6 +32,8 @@
 
 #include <crm/cluster.h>
 #include <crm/common/mainloop.h>
+
+#include "sbd.h"
 
 //undef SUPPORT_PLUGIN
 //define SUPPORT_PLUGIN 1

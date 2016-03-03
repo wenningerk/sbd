@@ -30,8 +30,6 @@
  *
  */
 
-#include "sbd.h"
-
 #include <sys/param.h>
 
 #include <crm/crm.h>
@@ -57,6 +55,8 @@
 #include <crm/common/mainloop.h>
 #include <crm/cib.h>
 #include <crm/pengine/status.h>
+
+#include "sbd.h"
 
 extern int disk_count;
 
