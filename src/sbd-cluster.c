@@ -277,7 +277,7 @@ sbd_remote_check(gpointer user_data)
 
     } else if(have_proc_pid == -1) {
         running = 1;
-        cl_log(LOG_DEBUG, "Poccess %ld is active", remoted_pid);
+        cl_log(LOG_DEBUG, "Poccess %ld is active", (long)remoted_pid);
 
     } else {
         int rc = 0;
@@ -298,7 +298,7 @@ sbd_remote_check(gpointer user_data)
 
         if (strcmp(exe_path, expected_path) == 0) {
             cl_log(LOG_DEBUG, "Poccess %s (%ld) is active",
-                   exe_path, remoted_pid);
+                   exe_path, (long)remoted_pid);
             running = 1;
         }
     }
@@ -344,9 +344,9 @@ find_pacemaker_remote(void)
         }
 
         /* entry_name is truncated to 16 characters including the nul terminator */
-        cl_log(LOG_DEBUG, "Found %s at %lu", entry_name, pid);
+        cl_log(LOG_DEBUG, "Found %s at %u", entry_name, pid);
         if (strcmp(entry_name, "pacemaker_remot") == 0) {
-            cl_log(LOG_NOTICE, "Found Pacemaker Remote at PID %lu", pid);
+            cl_log(LOG_NOTICE, "Found Pacemaker Remote at PID %u", pid);
             remoted_pid = pid;
             remote_node = true;
             break;
