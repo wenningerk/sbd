@@ -16,8 +16,8 @@
  * Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
  */
 
-#include "sbd.h"
 #include <pacemaker/crm/common/util.h>
+#include "sbd.h"
 #define	LOCKSTRLEN	11
 
 static struct servants_list_item *servants_leader = NULL;

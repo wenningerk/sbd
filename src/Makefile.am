@@ -1,5 +1,6 @@
 AM_CFLAGS = -D_GNU_SOURCE -DCHECK_AIS -DSBINDIR=\"$(sbindir)\"
 AM_CPPFLAGS =  -I$(includedir)/pacemaker  \
+	       -I$(includedir)/heartbeat  \
 		$(glib_CFLAGS)
 
 sbin_PROGRAMS = sbd
