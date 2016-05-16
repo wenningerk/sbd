@@ -2,7 +2,7 @@
 
 sbd - STONITH Block Device daemon
 
-=head1 SYNPOSIS
+=head1 SYNOPSIS
 
 sbd <-d F</dev/...>> [options] C<command>
 
@@ -16,16 +16,22 @@ dependencies on specific firmware controllers, and it can be used as a
 STONITH mechanism in all configurations that have reliable shared
 storage.
 
+SBD can also be used without any shared storage. In this mode, the
+watchdog device will be used to reset the node if it loses quorum, if
+any monitored daemon is lost and not recovered or if Pacemaker decides
+that the node requires fencing.
+
 The F<sbd> binary implements both the daemon that watches the message
 slots as well as the management tool for interacting with the block
 storage device(s). This mode of operation is specified via the
 C<command> parameter; some of these modes take additional parameters.
 
-To use, you must first C<create> the messaging layout on one to three
-block devices. Second, configure F</etc/sysconfig/sbd> to list those
-devices (and possibly adjust other options), and restart the cluster
-stack on each node to ensure that C<sbd> is started. Third, configure
-the C<external/sbd> fencing resource in the Pacemaker CIB.
+To use SBD with shared storage, you must first C<create> the messaging
+layout on one to three block devices. Second, configure
+F</etc/sysconfig/sbd> to list those devices (and possibly adjust other
+options), and restart the cluster stack on each node to ensure that
+C<sbd> is started. Third, configure the C<external/sbd> fencing
+resource in the Pacemaker CIB.
 
 Each of these steps is documented in more detail below the description
 of the command options.
@@ -134,8 +140,8 @@ This also affects the I<stonith-timeout> in Pacemaker's CIB; see below.
 Example usage:
 
 	# sbd -d /dev/sda1 list
-	0	hex-0	clear	
-	1	hex-7	clear	
+	0	hex-0	clear
+	1	hex-7	clear
 	2	hex-9	clear
 
 List all allocated slots on device, and messages. You should see all
@@ -249,7 +255,7 @@ servant will be restarted once every B<-t> seconds. If set to a different
 value, the servant will be restarted that many times within the dampening
 period and then delay.
 
-Defaults to I<1>. 
+Defaults to I<1>.
 
 =item B<-t> I<N>
 
@@ -443,7 +449,7 @@ storage (with internal redundancy) anyway; the SBD device does not
 introduce an additional single point of failure then.
 
 If the SBD device is not accessible, the daemon will fail to start and
-inhibit openais startup. 
+inhibit openais startup.
 
 =item Two devices
 
@@ -472,7 +478,7 @@ at least two devices remain accessible.
 This configuration is appropriate for more complex scenarios where
 storage is not confined to a single array. For example, host-based
 mirroring solutions could have one SBD per mirror leg (not mirrored
-itself), and an additional tie-breaker on iSCSI. 
+itself), and an additional tie-breaker on iSCSI.
 
 It will only start if at least two devices are accessible on boot.
 
@@ -599,7 +605,7 @@ I<inquisitor> process.
 
 =head1 LICENSE
 
-Copyright (C) 2008-2013 Lars Marowsky-Bree 
+Copyright (C) 2008-2013 Lars Marowsky-Bree
 
 This program is free software; you can redistribute it and/or
 modify it under the terms of the GNU General Public
@@ -614,4 +620,3 @@ General Public License for more details.
 For details see the GNU General Public License at
 http://www.gnu.org/licenses/gpl-2.0.html (version 2) and/or
 http://www.gnu.org/licenses/gpl.html (the newest as per "any later").
-
