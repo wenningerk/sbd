@@ -11,5 +11,5 @@ if SUPPORT_SHARED_DISK
 sbd_SOURCES += sbd-md.c
 endif
 
-sbd_LDFLAGS = $(glib_LIBS) $(libcoroipcc_LIBS)
+sbd_LDADD = $(glib_LIBS) $(libcoroipcc_LIBS)
 
