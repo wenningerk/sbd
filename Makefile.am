@@ -29,16 +29,19 @@ export:
 	    echo `date`: Rebuilt $(TARFILE);					\
 	fi
 
-srpm:	export
+#replace commit id in sbd.spce
+replace:
 	rm -f *.src.rpm
 	sed -i 's/global\ commit.*/global\ commit\ $(TAG)/' $(PACKAGE).spec
+
+srpm:	replace export
 	if [ -e $(BUILD_COUNTER) ]; then							\
 		sed -i 's/global\ buildnum.*/global\ buildnum\ $(COUNT)/' $(PACKAGE).spec;	\
 		echo $(COUNT) > $(BUILD_COUNTER);					\
 	fi
 	rpmbuild $(RPM_OPTS) -bs $(PACKAGE).spec
 
-rpm:	export
+rpm:	replace export
 	rpmbuild $(RPM_OPTS) -ba $(PACKAGE).spec
 
 mock:   srpm
