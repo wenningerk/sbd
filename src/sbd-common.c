@@ -687,7 +687,7 @@ set_servant_health(enum pcmk_health state, int level, char const *format, ...)
         len = vasprintf (&string, format, ap);
 
         if(len > 0) {
-            cl_log(level, string);
+            cl_log(level, "%s", string);
         }
         
         va_end(ap);
