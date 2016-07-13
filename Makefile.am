@@ -30,18 +30,18 @@ export:
 	fi
 
 #replace commit id in sbd.spce
-replace:
+spec:
 	rm -f *.src.rpm
 	sed -i 's/global\ commit.*/global\ commit\ $(TAG)/' $(PACKAGE).spec
 
-srpm:	replace export
+srpm:	spec export
 	if [ -e $(BUILD_COUNTER) ]; then							\
 		sed -i 's/global\ buildnum.*/global\ buildnum\ $(COUNT)/' $(PACKAGE).spec;	\
 		echo $(COUNT) > $(BUILD_COUNTER);					\
 	fi
 	rpmbuild $(RPM_OPTS) -bs $(PACKAGE).spec
 
-rpm:	replace export
+rpm:	spec export
 	rpmbuild $(RPM_OPTS) -ba $(PACKAGE).spec
 
 mock:   srpm
