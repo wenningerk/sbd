@@ -203,7 +203,7 @@ eval infodir="`eval echo ${infodir}`"
 eval mandir="`eval echo ${mandir}`"
 
 dnl The Makefiles and shell scripts we output
-AC_CONFIG_FILES([Makefile src/Makefile agent/Makefile man/Makefile src/sbd.service src/sbd_remote.service])
+AC_CONFIG_FILES([Makefile src/Makefile agent/Makefile man/Makefile src/sbd.service src/sbd_remote.service src/sbd_helper src/sbd_remote_helper])
 
 dnl Now process the entire list of files added by previous 
 dnl  calls to AC_CONFIG_FILES()

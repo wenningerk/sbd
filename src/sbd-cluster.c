@@ -190,9 +190,8 @@ int
 sbd_procfs_process_info(struct dirent *entry, char *name, int *pid)
 {
     int fd, local_pid;
-    FILE *file;
     struct stat statbuf;
-    char key[16] = { 0 }, procpath[128] = { 0 };
+    char procpath[128] = { 0 };
 
     /* We're only interested in entries whose name is a PID,
      * so skip anything non-numeric or that is too long.
@@ -225,22 +224,23 @@ sbd_procfs_process_info(struct dirent *entry, char *name, int *pid)
         return -1;
     }
 
-    /* Read the first entry ("Name:") from the process's status file.
-     * We could handle the valgrind case if we parsed the cmdline file
-     * instead, but that's more of a pain than it's worth.
+    /* we're hunting for a binary file so evaluate exe-link
+     * to filter out start-scripts, wrappers, valgrind and alike.
+     * truncate to 16 chars incl termination as "Name:" in status
+     * would be
      */
+
     if (name != NULL) {
-        strcat(procpath, "/status");
-        file = fopen(procpath, "r");
-        if (!file) {
+        ssize_t exe_len = 0;
+        char exepath[128] = { 0 };
+
+        strcat(procpath, "/exe");
+        exe_len = readlink(procpath, exepath, sizeof(exepath));
+        if (exe_len == -1) {
             return -1;
         }
-        if ((fscanf(file, "%15s%63s", key, name) != 2)
-            || safe_str_neq(key, "Name:")) {
-            fclose(file);
-            return -1;
-        }
-        fclose(file);
+        strncpy(name, basename(exepath),16);
+        name[15] = '\0';
     }
 
     return 0;

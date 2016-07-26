@@ -22,7 +22,12 @@
 
 Name:           sbd
 Summary:        Storage-based death
+%if %{defined _unitdir}
 License:        GPLv2+
+%else
+# initscript is Revised BSD
+License:        GPLv2+ and BSD
+%endif
 Group:          System Environment/Daemons
 Version:        1.2.1
 Release:        0.%{buildnum}.%{shortcommit}.git%{?dist}
@@ -77,6 +82,9 @@ install -D -m 0755 src/sbd.sh $RPM_BUILD_ROOT/usr/share/sbd/sbd.sh
 %if %{defined _unitdir}
 install -D -m 0644 src/sbd.service $RPM_BUILD_ROOT/%{_unitdir}/sbd.service
 install -D -m 0644 src/sbd_remote.service $RPM_BUILD_ROOT/%{_unitdir}/sbd_remote.service
+%else
+install -D -m 0755 src/sbd_helper $RPM_BUILD_ROOT/%{_initrddir}/sbd_helper
+install -D -m 0755 src/sbd_remote_helper $RPM_BUILD_ROOT/%{_initrddir}/sbd_remote_helper
 %endif
 
 mkdir -p ${RPM_BUILD_ROOT}%{_sysconfdir}/sysconfig
@@ -97,6 +105,20 @@ rm -rf %{buildroot}
 %postun
 %systemd_postun sbd.service
 %systemd_postun sbd_remote.service
+
+%else
+
+%post
+/sbin/chkconfig --add sbd_helper || :
+
+%preun
+/sbin/service sbd_helper stop  &>/dev/null || :
+/sbin/service sbd_remote_helper stop  &>/dev/null || :
+if [ $1 -eq 0 ]; then
+    # Package removal, not upgrade
+    /sbin/chkconfig --del sbd_helper || :
+    /sbin/chkconfig --del sbd_remote_helper || :
+fi
 %endif
 
 %files
@@ -109,6 +131,9 @@ rm -rf %{buildroot}
 %if %{defined _unitdir}
 %{_unitdir}/sbd.service
 %{_unitdir}/sbd_remote.service
+%else
+%{_initrddir}/sbd_helper
+%{_initrddir}/sbd_remote_helper
 %endif
 %doc COPYING
 

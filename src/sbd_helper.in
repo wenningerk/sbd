@@ -1,0 +1,175 @@
+#!/bin/bash
+
+# Authors:
+#  Klaus Wenninger <kwenning@redhat.com>
+#
+# License: Revised BSD
+
+# chkconfig: - 99 01
+# description: Shared-storage based fencing daemon
+# processname: sbd
+#
+### BEGIN INIT INFO
+# Provides:		sbd_helper
+# Required-Start:	$local_fs $remote_fs
+# Should-Start:		$syslog iscsi open-iscsi
+# Should-Stop:		$syslog iscsi open-iscsi
+# X-Start-Before: 	corosync
+# X-Stop-After: 	corosync
+# Required-Stop:	$local_fs $remote_fs
+# Default-Start:
+# Default-Stop:
+# Short-Description:	Starts and stops Shared-storage based fencing daemon.
+# Description:		Starts and stops Shared-storage based fencing daemon.
+### END INIT INFO
+
+desc="Shared-storage based fencing daemon"
+prog="sbd"
+pidfile="@localstatedir@/run/${prog}.pid"
+
+# set secure PATH
+PATH="/sbin:/bin:/usr/sbin:/usr/bin:@sbindir@"
+
+checkrc() {
+	if [ $? = 0 ]; then
+		success
+	else
+		failure
+	fi
+}
+
+success()
+{
+	echo -ne "[  OK  ]\r"
+}
+
+failure()
+{
+	echo -ne "[FAILED]\r"
+}
+
+log()
+{
+	logger -t sbd -p daemon.notice "$*"
+}
+
+notify()
+{
+	log "$*"
+	echo -n "   $*"
+}
+
+sbd_status()
+{
+	pid=$(cat "$pidfile" 2>/dev/null)
+	status_rtrn=$?
+	if [ $status_rtrn -eq 0 ]; then
+		kill -0 $pid > /dev/null 2>&1
+		status_rtrn=$?
+	fi
+	if [ $status_rtrn -ne 0 ]; then
+		if [ -f "$pidfile" ]; then
+			status_rtrn=1
+		else
+			status_rtrn=3
+		fi
+		rm -f "$pidfile"
+		echo "$prog is stopped"
+	else
+		echo "$prog (pid $pid) is running..."
+	fi
+	return $status_rtrn
+}
+
+if [ -d @CONFIGDIR@ ]; then
+	[ -f @INITDIR@/functions ] && . @INITDIR@/functions
+set -a
+	[ -f @CONFIGDIR@/sbd ] && . @CONFIGDIR@/sbd
+set +a
+fi
+
+LOCK_DIR="."
+if [ -d "@localstatedir@/lock/subsys" ]; then
+	LOCK_DIR="@localstatedir@/lock/subsys"
+elif [ -d "@localstatedir@/lock" ]; then
+	LOCK_DIR="@localstatedir@/lock"
+fi
+[ -z "$LOCK_FILE" ] && LOCK_FILE="$LOCK_DIR/sbd"
+
+start()
+{
+	notify "Starting $desc"
+
+	if sbd_status > /dev/null 2>&1; then
+		success
+	else
+		$prog $SBD_OPTS -p "$pidfile" watch > /dev/null 2>&1
+
+		# give it a little time to fail after daemonization
+		sleep 2
+
+		if sbd_status > /dev/null 2>&1; then
+			touch "$LOCK_FILE"
+			success
+		else
+			failure
+			rtrn=1
+		fi
+	fi
+	echo
+}
+
+stop()
+{
+	if sbd_status > /dev/null 2>&1; then
+	    notify "Signaling $desc to terminate"
+	    kill -TERM $(cat "$pidfile") > /dev/null 2>&1
+	    checkrc
+	    echo
+
+	    notify "Waiting for sbd to unload"
+	    while sbd_status > /dev/null 2>&1; do
+		sleep 1
+		echo -n "."
+	    done
+	else
+	    echo -n "$desc is already stopped"
+	fi
+
+	rm -f "$LOCK_FILE"
+	rm -f "$pidfile"
+	killall -q -9 sbd
+	success
+	echo
+}
+
+rtrn=0
+
+case "$1" in
+start)
+	start
+;;
+restart|reload|force-reload)
+	stop
+	start
+;;
+condrestart|try-restart)
+	if sbd_status > /dev/null 2>&1; then
+	    stop
+	    start
+	fi
+;;
+status)
+	sbd_status
+	rtrn=$?
+;;
+stop)
+	stop
+;;
+*)
+	echo "usage: $0 {start|stop|restart|reload|force-reload|condrestart|try-restart|status}"
+	rtrn=2
+;;
+esac
+
+exit $rtrn
