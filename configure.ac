@@ -89,6 +89,18 @@ then
 	AC_DEFINE_UNQUOTED(HAVE_PROC_PID, 1, Define to 1 if /proc/{pid} is supported.)
 fi
 
+INITDIR=""
+AC_ARG_WITH(initdir,
+    [  --with-initdir=DIR      directory for init (rc) scripts [${INITDIR}]],
+    [ INITDIR="$withval" ])
+
+CONFIGDIR=""
+AC_ARG_WITH(configdir,
+    [  --with-configdir=DIR
+       Directory for Pacemaker configuration file [${CONFIGDIR}]],
+    [ CONFIGDIR="$withval" ]
+)
+
 dnl **********************************************************************
 dnl Check for various argv[] replacing functions on various OSs
 dnl
@@ -201,6 +213,31 @@ eval includedir="`eval echo ${includedir}`"
 eval oldincludedir="`eval echo ${oldincludedir}`"
 eval infodir="`eval echo ${infodir}`"
 eval mandir="`eval echo ${mandir}`"
+
+dnl Home-grown variables
+eval INITDIR="${INITDIR}"
+AC_MSG_NOTICE(Sanitizing INITDIR: ${INITDIR})
+case $INITDIR in
+  prefix) INITDIR=$prefix;;
+  "")
+    AC_MSG_CHECKING(which init (rc) directory to use)
+      for initdir in /etc/init.d /etc/rc.d/init.d /sbin/init.d  \
+           /usr/local/etc/rc.d /etc/rc.d
+      do
+        if
+          test -d $initdir
+        then
+          INITDIR=$initdir
+          break
+        fi
+      done
+      AC_MSG_RESULT($INITDIR);;
+esac
+AC_SUBST(INITDIR)
+if test x"${CONFIGDIR}" = x""; then
+    CONFIGDIR="${sysconfdir}/sysconfig"
+fi
+AC_SUBST(CONFIGDIR)
 
 dnl The Makefiles and shell scripts we output
 AC_CONFIG_FILES([Makefile src/Makefile agent/Makefile man/Makefile src/sbd.service src/sbd_remote.service src/sbd_helper src/sbd_remote_helper])
