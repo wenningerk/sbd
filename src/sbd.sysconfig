@@ -21,7 +21,7 @@ SBD_PACEMAKER=yes
 # allow sbd to start if it was not previously fenced. See the -S option
 # in the man page.
 #
-SBD_STARTMODE=clean
+SBD_STARTMODE=always
 
 ## Type: yesno
 ## Default: no
