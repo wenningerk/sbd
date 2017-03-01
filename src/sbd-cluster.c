@@ -297,7 +297,7 @@ sbd_remote_check(gpointer user_data)
         expected_path[rc] = 0;
 
         if (strcmp(exe_path, expected_path) == 0) {
-            cl_log(LOG_DEBUG, "Poccess %s (%ld) is active",
+            cl_log(LOG_DEBUG, "Process %s (%ld) is active",
                    exe_path, (long)remoted_pid);
             running = 1;
         }
