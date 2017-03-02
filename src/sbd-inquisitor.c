@@ -1012,6 +1012,14 @@ int main(int argc, char **argv, char **envp)
 		cl_log(LOG_INFO, "Watchdog disabled.");
 	}
 
+	if ((disk_count > 0) && (strlen(local_uname) > SECTOR_NAME_MAX)) {
+		fprintf(stderr, "Node name mustn't be longer than %d chars.\n",
+			SECTOR_NAME_MAX);
+		fprintf(stderr, "If uname is longer define a name to be used by sbd.\n");
+		exit_status = -1;
+		goto out;
+	}
+
 	if (disk_count > 3) {
 		fprintf(stderr, "You can specify up to 3 devices via the -d option.\n");
 		exit_status = -1;
