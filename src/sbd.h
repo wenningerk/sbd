@@ -55,6 +55,7 @@
 /* FIXME: should add dynamic check of SIG_XX >= SIGRTMAX */
 
 #define HOG_CHAR	0xff
+#define SECTOR_NAME_MAX 63
 
 /* Sector data types */
 struct sector_header_s {
@@ -75,13 +76,13 @@ struct sector_header_s {
 
 struct sector_mbox_s {
 	signed char	cmd;
-	char		from[64];
+	char		from[SECTOR_NAME_MAX+1];
 };
 
 struct sector_node_s {
 	/* slots will be created with in_use == 0 */
 	char	in_use;
-	char 	name[64];
+	char 	name[SECTOR_NAME_MAX+1];
 };
 
 struct servants_list_item {

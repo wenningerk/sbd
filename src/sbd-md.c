@@ -452,7 +452,7 @@ slot_lookup(struct sbd_context *st, const struct sector_header_s *s_header, cons
 		}
 		if (s_node->in_use != 0) {
 			if (strncasecmp(s_node->name, name,
-						sizeof(s_node->name)) == 0) {
+						SECTOR_NAME_MAX) == 0) {
 				DBGLOG(LOG_INFO, "%s owns slot %d", name, i);
 				rc = i; goto out;
 			}
@@ -526,7 +526,7 @@ slot_allocate(struct sbd_context *st, const char *name)
 			fprintf(stdout, "slot %d is unused - trying to own\n", i);
 			memset(s_node, 0, sizeof(*s_node));
 			s_node->in_use = 1;
-			strncpy(s_node->name, name, sizeof(s_node->name));
+			strncpy(s_node->name, name, SECTOR_NAME_MAX);
 			if (slot_write(st, i, s_node) < 0) {
 				rc = -1; goto out;
 			}
@@ -623,7 +623,7 @@ slot_msg(struct sbd_context *st, const char *name, const char *cmd)
 		rc = -1; goto out;
 	}
 
-	strncpy(s_mbox->from, local_uname, sizeof(s_mbox->from)-1);
+	strncpy(s_mbox->from, local_uname, SECTOR_NAME_MAX);
 
 	cl_log(LOG_INFO, "Writing %s to node slot %s",
 			cmd, name);
@@ -675,7 +675,7 @@ slot_ping(struct sbd_context *st, const char *name)
 	s_mbox = sector_alloc();
 	s_mbox->cmd = SBD_MSG_TEST;
 
-	strncpy(s_mbox->from, local_uname, sizeof(s_mbox->from)-1);
+	strncpy(s_mbox->from, local_uname, SECTOR_NAME_MAX);
 
 	DBGLOG(LOG_DEBUG, "Pinging node %s", name);
 	if (mbox_write(st, mbox, s_mbox) < -1) {
