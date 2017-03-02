@@ -36,10 +36,11 @@ SBD_STARTMODE=always
 #
 SBD_DELAY_START=no
 
-## Type: yesno
-## Default: yes
+## Type: string
+## Default: /dev/watchdog
 #
-# Whether to use a watchdog.
+# Watchdog device to use. If set to /dev/null, no watchdog device will
+# be used.
 #
 SBD_WATCHDOG_DEV=/dev/watchdog
 
