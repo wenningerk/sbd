@@ -171,7 +171,7 @@ Dump meta-data header from device.
 
 Example usage:
 
-	sbd -d /dev/sdc2 -d /dev/sdd3 -W -P watch
+	sbd -d /dev/sdc2 -d /dev/sdd3 -P watch
 
 This command will make C<sbd> start in daemon mode. It will constantly monitor
 the message slot of the local node for incoming messages, reachability, and
