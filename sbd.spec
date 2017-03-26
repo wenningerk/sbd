@@ -15,16 +15,16 @@
 
 # Please submit bugfixes or comments via http://bugs.opensuse.org/
 #
-%global commit 872e82f39db02eab3527ecfa392b1a930dd1964b
+%global commit 4ee36fa33b57a1ad95678363911cfb02a92e1edb
 %global shortcommit %(c=%{commit}; echo ${c:0:7})
 %global github_owner beekhof
-%global buildnum 5
+%global buildnum 1
 
 Name:           sbd
 Summary:        Storage-based death
 License:        GPLv2+
 Group:          System Environment/Daemons
-Version:        1.2.1
+Version:        1.3.0
 Release:        0.%{buildnum}.%{shortcommit}.git%{?dist}
 Url:            https://github.com/%{github_owner}/%{name}
 Source0:        https://github.com/%{github_owner}/%{name}/archive/%{commit}/%{name}-%{commit}.tar.gz
@@ -113,6 +113,11 @@ rm -rf %{buildroot}
 %doc COPYING
 
 %changelog
+* Sun Mar 26 2016 <klaus.wenninger@aon.at> - 1.3.0-0.1.4ee36fa3.git
+- Changes since v1.2.0 like adding the possibility to have a
+  watchdog-only setup without shared-block-devices
+  legitimate a bump to v1.3.0.
+
 * Mon Oct 13 2014 <andrew@beekhof.net> - 1.2.1-0.4.3de531ed.git
 - Fixes for suitability to the el7 environment
 
