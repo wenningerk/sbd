@@ -67,7 +67,7 @@ start() {
 			exit 1
 		fi
 		if ocf_is_true ${SBD_DELAY_START} ; then
-			sleep $($SBD_BIN -d "$SBD_DEVICE" dump | grep -m 1 msgwait | awk '{print $4}') 2>/dev/null
+			sleep $($SBD_BIN -d $SBD_DEVICE dump | grep -m 1 msgwait | awk '{print $4}') 2>/dev/null
 		fi
 	else
 		return 0
