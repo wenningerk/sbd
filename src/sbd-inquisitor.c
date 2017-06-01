@@ -199,7 +199,7 @@ void servants_kill(void)
 	}
 }
 
-inline void cleanup_servant_by_pid(pid_t pid)
+static inline void cleanup_servant_by_pid(pid_t pid)
 {
 	struct servants_list_item* s;
 
