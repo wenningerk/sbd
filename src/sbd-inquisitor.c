@@ -50,6 +50,11 @@ void recruit_servant(const char *devname, pid_t pid)
 	struct servants_list_item *s = servants_leader;
 	struct servants_list_item *newbie;
 
+	if (lookup_servant_by_dev(devname)) {
+		cl_log(LOG_DEBUG, "Servant %s already exists", devname);
+		return;
+	}
+
 	newbie = malloc(sizeof(*newbie));
 	if (!newbie) {
 		fprintf(stderr, "malloc failed in recruit_servant.\n");
