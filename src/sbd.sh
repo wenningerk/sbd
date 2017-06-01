@@ -38,7 +38,7 @@ if [ -z "$SBD_DEVICE" ]; then
 	exit 1
 fi
 SBD_DEVS=${SBD_DEVICE%;}
-SBD_DEVICE=${SBD_DEVS//;/ -d }
+SBD_DEVICE_ARGS="-d ${SBD_DEVS//;/ -d }"
 
 : ${SBD_PIDFILE:=/var/run/sbd.pid}
 SBD_OPTS+=" -p $SBD_PIDFILE"
@@ -62,12 +62,12 @@ esac
 
 start() {
 	if ! pidofproc -p $SBD_PIDFILE $SBD_BIN >/dev/null 2>&1 ; then
-		if ! $SBD_BIN -d $SBD_DEVICE $SBD_OPTS watch ; then
+		if ! $SBD_BIN $SBD_DEVICE_ARGS $SBD_OPTS watch ; then
 			echo "SBD failed to start; aborting."
 			exit 1
 		fi
 		if ocf_is_true ${SBD_DELAY_START} ; then
-			sleep $($SBD_BIN -d $SBD_DEVICE dump | grep -m 1 msgwait | awk '{print $4}') 2>/dev/null
+			sleep $($SBD_BIN $SBD_DEVICE_ARGS dump | grep -m 1 msgwait | awk '{print $4}') 2>/dev/null
 		fi
 	else
 		return 0
@@ -75,7 +75,7 @@ start() {
 }
 
 stop() {
-	if ! $SBD_BIN -d $SBD_DEVICE -D $SBD_OPTS message LOCAL exit ; then
+	if ! $SBD_BIN $SBD_DEVICE_ARGS -D $SBD_OPTS message LOCAL exit ; then
 		echo "SBD failed to stop; aborting."
 		exit 1
 	fi

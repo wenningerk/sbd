@@ -1081,7 +1081,7 @@ int main(int argc, char **argv, char **envp)
 #endif
         
         if (strcmp(argv[optind], "watch") == 0) {
-            /* sleep $(sbd -d "$SBD_DEVICE" dump | grep -m 1 msgwait | awk '{print $4}') 2>/dev/null */
+            /* sleep $(sbd $SBD_DEVICE_ARGS dump | grep -m 1 msgwait | awk '{print $4}') 2>/dev/null */
 
                 /* We only want this to have an effect during watch right now;
                  * pinging and fencing would be too confused */
