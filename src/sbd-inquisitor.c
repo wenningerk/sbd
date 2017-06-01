@@ -104,7 +104,7 @@ struct servants_list_item *lookup_servant_by_dev(const char *devname)
 	struct servants_list_item *s;
 
 	for (s = servants_leader; s; s = s->next) {
-		if (strncasecmp(s->devname, devname, strlen(s->devname)))
+		if (strcasecmp(s->devname, devname) == 0)
 			break;
 	}
 	return s;
