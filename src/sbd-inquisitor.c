@@ -443,7 +443,6 @@ void inquisitor_child(void)
 	sigaddset(&procmask, SIG_LIVENESS);
 	sigaddset(&procmask, SIG_EXITREQ);
 	sigaddset(&procmask, SIG_TEST);
-	sigaddset(&procmask, SIG_IO_FAIL);
 	sigaddset(&procmask, SIG_PCMK_UNHEALTHY);
 	sigaddset(&procmask, SIG_RESTART);
 	sigaddset(&procmask, SIGUSR1);
@@ -474,6 +473,31 @@ void inquisitor_child(void)
 				if (pid == -1 && errno == ECHILD) {
 					break;
 				} else {
+					s = lookup_servant_by_pid(pid);
+					if (sbd_is_disk(s)) {
+						if (WIFEXITED(status)) {
+							switch(WEXITSTATUS(status)) {
+								case EXIT_MD_IO_FAIL:
+									DBGLOG(LOG_INFO, "Servant for %s requests to be disowned",
+										s->devname);
+									break;
+								case EXIT_MD_REQUEST_RESET:
+									cl_log(LOG_WARNING, "%s requested a reset", s->devname);
+									do_reset();
+									break;
+								case EXIT_MD_REQUEST_SHUTOFF:
+									cl_log(LOG_WARNING, "%s requested a shutoff", s->devname);
+									do_off();
+									break;
+								case EXIT_MD_REQUEST_CRASHDUMP:
+									cl_log(LOG_WARNING, "%s requested a crashdump", s->devname);
+									do_crashdump();
+									break;
+								default:
+									break;
+							}
+						}
+					}
 					cleanup_servant_by_pid(pid);
 				}
 			}
@@ -487,13 +511,6 @@ void inquisitor_child(void)
             } else {
                 cl_log(LOG_WARNING, "Ignoring SIG_PCMK_UNHEALTHY from unknown source");
             }
-		} else if (sig == SIG_IO_FAIL) {
-			s = lookup_servant_by_pid(sinfo.si_pid);
-			if (s) {
-				DBGLOG(LOG_INFO, "Servant for %s requests to be disowned",
-						s->devname);
-				cleanup_servant_by_pid(sinfo.si_pid);
-			}
 		} else if (sig == SIG_LIVENESS) {
 			s = lookup_servant_by_pid(sinfo.si_pid);
 			if (s) {

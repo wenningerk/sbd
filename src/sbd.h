@@ -50,9 +50,14 @@
 #define SIG_EXITREQ  (SIGRTMIN + 2)	/* exit request to inquisitor */
 #define SIG_TEST     (SIGRTMIN + 3)	/* trigger self test */
 #define SIG_RESTART  (SIGRTMIN + 4)	/* trigger restart of all failed disk */
-#define SIG_IO_FAIL  (SIGRTMIN + 5)	/* the IO child requests to be considered failed */
-#define SIG_PCMK_UNHEALTHY  (SIGRTMIN + 6)
+#define SIG_PCMK_UNHEALTHY  (SIGRTMIN + 5)
 /* FIXME: should add dynamic check of SIG_XX >= SIGRTMAX */
+
+/* exit status for disk-servant */
+#define EXIT_MD_IO_FAIL             20
+#define EXIT_MD_REQUEST_RESET       21
+#define EXIT_MD_REQUEST_SHUTOFF     22
+#define EXIT_MD_REQUEST_CRASHDUMP   23
 
 #define HOG_CHAR	0xff
 #define SECTOR_NAME_MAX 63
