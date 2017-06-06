@@ -34,17 +34,6 @@ char*	pidfile = NULL;
 
 int parse_device_line(const char *line);
 
-bool
-sbd_is_disk(struct servants_list_item *servant) 
-{
-    if (servant == NULL
-        || servant->devname == NULL
-        || servant->devname[0] == '/') {
-        return true;
-    }
-    return false;
-}
-
 void recruit_servant(const char *devname, pid_t pid)
 {
 	struct servants_list_item *s = servants_leader;
@@ -162,11 +151,11 @@ void servant_start(struct servants_list_item *s)
                 cl_log(LOG_ERR, "Shared disk functionality not supported");
                 return;
 #endif
-	} else if(strcmp("pcmk", s->devname) == 0) {
+	} else if(sbd_is_pcmk(s)) {
 		DBGLOG(LOG_INFO, "Starting Pacemaker servant");
 		s->pid = assign_servant(s->devname, servant_pcmk, start_mode, NULL);
 
-	} else if(strcmp("cluster", s->devname) == 0) {
+	} else if(sbd_is_cluster(s)) {
 		DBGLOG(LOG_INFO, "Starting Cluster servant");
 		s->pid = assign_servant(s->devname, servant_cluster, start_mode, NULL);
 
@@ -401,7 +390,7 @@ int cluster_alive(bool all)
     }
 
     for (s = servants_leader; s; s = s->next) {
-        if (sbd_is_disk(s) == false) {
+        if (sbd_is_cluster(s) || sbd_is_pcmk(s)) {
             if(s->outdated) {
                 alive = 0;
             } else if(all == false) {
@@ -490,16 +479,14 @@ void inquisitor_child(void)
 			}
 		} else if (sig == SIG_PCMK_UNHEALTHY) {
 			s = lookup_servant_by_pid(sinfo.si_pid);
-			if (sbd_is_disk(s)) {
-				cl_log(LOG_WARNING, "Ignoring SIG_PCMK_UNHEALTHY from unknown source");
-
-                        } else {
-                            if(s->outdated == 0) {
-                                cl_log(LOG_WARNING, "%s health check: UNHEALTHY", s->devname);
-                            }
-                            s->t_last.tv_sec = 1;
-			}
-
+			if (sbd_is_cluster(s) || sbd_is_pcmk(s)) {
+                if (s->outdated == 0) {
+                    cl_log(LOG_WARNING, "%s health check: UNHEALTHY", s->devname);
+                }
+                s->t_last.tv_sec = 1;
+            } else {
+                cl_log(LOG_WARNING, "Ignoring SIG_PCMK_UNHEALTHY from unknown source");
+            }
 		} else if (sig == SIG_IO_FAIL) {
 			s = lookup_servant_by_pid(sinfo.si_pid);
 			if (s) {

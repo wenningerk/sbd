@@ -833,7 +833,7 @@ int ping_via_slots(const char *name, struct servants_list_item *servants)
 					break;
 				} else {
 					s = lookup_servant_by_pid(pid);
-					if (s && sbd_is_disk(s)) {
+					if (sbd_is_disk(s)) {
 						servants_finished++;
 					}
 				}
