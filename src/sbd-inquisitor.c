@@ -50,6 +50,11 @@ void recruit_servant(const char *devname, pid_t pid)
 	struct servants_list_item *s = servants_leader;
 	struct servants_list_item *newbie;
 
+	if (lookup_servant_by_dev(devname)) {
+		cl_log(LOG_DEBUG, "Servant %s already exists", devname);
+		return;
+	}
+
 	newbie = malloc(sizeof(*newbie));
 	if (!newbie) {
 		fprintf(stderr, "malloc failed in recruit_servant.\n");
@@ -104,7 +109,7 @@ struct servants_list_item *lookup_servant_by_dev(const char *devname)
 	struct servants_list_item *s;
 
 	for (s = servants_leader; s; s = s->next) {
-		if (strncasecmp(s->devname, devname, strlen(s->devname)))
+		if (strcasecmp(s->devname, devname) == 0)
 			break;
 	}
 	return s;
@@ -194,7 +199,7 @@ void servants_kill(void)
 	}
 }
 
-inline void cleanup_servant_by_pid(pid_t pid)
+static inline void cleanup_servant_by_pid(pid_t pid)
 {
 	struct servants_list_item* s;
 
@@ -1076,7 +1081,7 @@ int main(int argc, char **argv, char **envp)
 #endif
         
         if (strcmp(argv[optind], "watch") == 0) {
-            /* sleep $(sbd -d "$SBD_DEVICE" dump | grep -m 1 msgwait | awk '{print $4}') 2>/dev/null */
+            /* sleep $(sbd $SBD_DEVICE_ARGS dump | grep -m 1 msgwait | awk '{print $4}') 2>/dev/null */
 
                 /* We only want this to have an effect during watch right now;
                  * pinging and fencing would be too confused */
