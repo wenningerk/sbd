@@ -33,6 +33,8 @@
 #include <crm/cluster.h>
 #include <crm/common/mainloop.h>
 
+#include <glib-unix.h>
+
 #include "sbd.h"
 
 //undef SUPPORT_PLUGIN
@@ -47,6 +49,7 @@ static crm_cluster_t cluster;
 static gboolean sbd_remote_check(gpointer user_data);
 static long unsigned int find_pacemaker_remote(void);
 static void sbd_membership_destroy(gpointer user_data);
+
 
 #if SUPPORT_PLUGIN
 static void
@@ -67,6 +70,55 @@ sbd_plugin_membership_dispatch(cpg_handle_t handle,
 #endif
 
 #if SUPPORT_COROSYNC
+
+static bool two_node = false;
+static bool ever_seen_both = false;
+
+#if CHECK_TWO_NODE
+#include <corosync/cmap.h>
+
+static cmap_handle_t cmap_handle = 0;
+static cmap_track_handle_t track_handle = 0;
+static int cpg_membership_entries = -1;
+static GSource *cmap_source = NULL;
+#endif
+
+void
+sbd_cpg_membership_health_update()
+{
+    if(cpg_membership_entries > 0) {
+        bool quorum_is_suspect =
+            (two_node && ever_seen_both && cpg_membership_entries == 1);
+
+        if (!quorum_is_suspect) {
+            set_servant_health(pcmk_health_online, LOG_INFO,
+                           "Connected to %s (%u members)",
+                           name_for_cluster_type(get_cluster_type()),
+                           cpg_membership_entries
+                          );
+        } else {
+            /* Alternative would be asking votequorum for number of votes.
+             * Using pacemaker's cpg as source for number of active nodes
+             * avoids binding to an additional library, is definitely
+             * less code to write and we wouldn't have to combine data
+             * from 3 sources (cmap, cpq & votequorum) in a potentially
+             * racy environment.
+             */
+            set_servant_health(pcmk_health_noquorum, LOG_WARNING,
+                           "Connected to %s but requires both nodes present",
+                           name_for_cluster_type(get_cluster_type())
+                          );
+        }
+
+        if (cpg_membership_entries > 1) {
+            ever_seen_both = true;
+        }
+    } else {
+        set_servant_health(pcmk_health_unclean, LOG_WARNING,
+                           "Empty %s membership", name_for_cluster_type(get_cluster_type()));
+    }
+}
+
 void
 sbd_cpg_membership_dispatch(cpg_handle_t handle,
                     const struct cpg_name *groupName,
@@ -74,15 +126,103 @@ sbd_cpg_membership_dispatch(cpg_handle_t handle,
                     const struct cpg_address *left_list, size_t left_list_entries,
                     const struct cpg_address *joined_list, size_t joined_list_entries)
 {
-    if(member_list_entries > 0) {
-        set_servant_health(pcmk_health_online, LOG_INFO,
-                           "Connected to %s", name_for_cluster_type(get_cluster_type()));
-    } else {
-        set_servant_health(pcmk_health_unclean, LOG_WARNING,
-                           "Empty %s membership", name_for_cluster_type(get_cluster_type()));
-    }
+    cpg_membership_entries = member_list_entries;
+    sbd_cpg_membership_health_update();
     notify_parent();
 }
+
+#if CHECK_TWO_NODE
+static void sbd_cmap_notify_fn(
+    cmap_handle_t cmap_handle,
+    cmap_track_handle_t cmap_track_handle,
+    int32_t event,
+    const char *key_name,
+    struct cmap_notify_value new_val,
+    struct cmap_notify_value old_val,
+    void *user_data)
+{
+    if (new_val.type == CMAP_VALUETYPE_UINT8) {
+        switch (event) {
+            case CMAP_TRACK_ADD:
+            case CMAP_TRACK_MODIFY:
+                two_node = *((uint8_t *) new_val.data);
+                break;
+            case CMAP_TRACK_DELETE:
+                two_node = false;
+                break;
+            default:
+                return;
+        }
+        sbd_cpg_membership_health_update();
+        notify_parent();
+    }
+}
+
+static gboolean
+cmap_dispatch_callback (gpointer user_data)
+{
+    cmap_dispatch(cmap_handle, CS_DISPATCH_ALL);
+    return TRUE;
+}
+
+static gboolean
+sbd_get_two_node(void)
+{
+    uint8_t two_node_u8 = 0;
+    int cmap_fd;
+
+    if (!track_handle) {
+        if (cmap_initialize(&cmap_handle) != CS_OK) {
+            cl_log(LOG_WARNING, "Cannot initialize CMAP service\n");
+            goto out;
+        }
+
+        if (cmap_track_add(cmap_handle, "quorum.two_node",
+                            CMAP_TRACK_DELETE|CMAP_TRACK_MODIFY|CMAP_TRACK_ADD,
+                            sbd_cmap_notify_fn, NULL, &track_handle) != CS_OK) {
+            cl_log(LOG_WARNING, "Failed adding CMAP tracker for 2Node-mode\n");
+            goto out;
+        }
+
+        /* add the tracker to mainloop */
+        if (cmap_fd_get(cmap_handle, &cmap_fd) != CS_OK) {
+            cl_log(LOG_WARNING, "Failed to get a file handle for cmap\n");
+            goto out;
+        }
+
+        if (!(cmap_source = g_unix_fd_source_new (cmap_fd, G_IO_IN))) {
+            cl_log(LOG_WARNING, "Couldn't create source for cmap\n");
+            goto out;
+        }
+        g_source_set_callback(cmap_source, cmap_dispatch_callback, NULL, NULL);
+        g_source_attach(cmap_source, NULL);
+    }
+
+    if (cmap_get_uint8(cmap_handle, "quorum.two_node", &two_node_u8) == CS_OK) {
+        cl_log(LOG_NOTICE, "Corosync is%s in 2Node-mode", two_node_u8?"":" not");
+        two_node = two_node_u8;
+    } else {
+        cl_log(LOG_NOTICE, "quorum.two_node present in cmap\n");
+    }
+    return TRUE;
+
+out:
+    if (cmap_source) {
+        g_source_destroy(cmap_source);
+        cmap_source = NULL;
+    }
+    if (track_handle) {
+        cmap_track_delete(cmap_handle, track_handle);
+        track_handle = 0;
+    }
+    if (cmap_handle) {
+        cmap_finalize(cmap_handle);
+        cmap_handle = 0;
+    }
+
+    return FALSE;
+}
+#endif
 #endif
 
 static gboolean
@@ -143,9 +283,17 @@ sbd_membership_connect(void)
         } else {
             cl_log(LOG_INFO, "Attempting connection to %s", name_for_cluster_type(stack));
 
-            if(crm_cluster_connect(&cluster)) {
-                connected = true;
+#if SUPPORT_COROSYNC && CHECK_TWO_NODE
+            if (sbd_get_two_node()) {
+#endif
+
+                if(crm_cluster_connect(&cluster)) {
+                    connected = true;
+                }
+
+#if SUPPORT_COROSYNC && CHECK_TWO_NODE
             }
+#endif
         }
 
         if(connected == false) {
