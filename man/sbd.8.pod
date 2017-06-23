@@ -62,7 +62,7 @@ Enable some verbose debug logging.
 
 Display a concise summary of C<sbd> options.
 
-=item B<-c> I<node>
+=item B<-n> I<node>
 
 Set local node name; defaults to C<uname -n>. This should not need to be
 set.
