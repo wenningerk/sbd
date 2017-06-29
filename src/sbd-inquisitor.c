@@ -862,6 +862,13 @@ int main(int argc, char **argv, char **envp)
             watchdogdev = strdup(value);
         }
 
+        /* SBD_WATCHDOG has been dropped from sbd.sysconfig example.
+         * This is for backward compatibility. */
+        value = getenv("SBD_WATCHDOG");
+        if(value) {
+            watchdog_use = crm_is_true(value);
+        }
+
         value = getenv("SBD_WATCHDOG_TIMEOUT");
         if(value) {
             timeout_watchdog = crm_get_msec(value) / 1000;
