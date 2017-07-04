@@ -1019,11 +1019,11 @@ int main(int argc, char **argv, char **envp)
 		}
 	}
 
-	if (W_count > 0) {
-            watchdog_use = arg_enabled(W_count);
-
-	} else if(watchdogdev == NULL || strcmp(watchdogdev, "/dev/null") == 0) {
+	if (watchdogdev == NULL || strcmp(watchdogdev, "/dev/null") == 0) {
             watchdog_use = 0;
+
+	} else if (W_count > 0) {
+            watchdog_use = arg_enabled(W_count);
         }
 
 	if (watchdog_use) {
