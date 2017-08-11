@@ -22,8 +22,8 @@
 # Main code
 
 if [ -z "$sbd_device" ]; then
-	if [ -f /etc/sysconfig/sbd ]; then
-		source /etc/sysconfig/sbd
+	if [ -f @CONFIGDIR@/sbd ]; then
+		source @CONFIGDIR@/sbd
 		sbd_device=$SBD_DEVICE
 	fi
 fi
@@ -150,7 +150,7 @@ The block device used for the SBD partition. Up to three
 can be specified if separated by a semicolon. (Please check
 the documentation if specifying two.)
 
-If not specified, will default to the value from /etc/sysconfig/sbd.
+If not specified, will default to the value from @CONFIGDIR@/sbd.
 
 </longdesc>
 </parameter>

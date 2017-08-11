@@ -89,6 +89,13 @@ then
 	AC_DEFINE_UNQUOTED(HAVE_PROC_PID, 1, Define to 1 if /proc/{pid} is supported.)
 fi
 
+CONFIGDIR=""
+AC_ARG_WITH(configdir,
+    [  --with-configdir=DIR
+       Directory for SBD configuration file [${CONFIGDIR}]],
+    [ CONFIGDIR="$withval" ]
+)
+
 dnl **********************************************************************
 dnl Check for various argv[] replacing functions on various OSs
 dnl
@@ -202,8 +209,13 @@ eval oldincludedir="`eval echo ${oldincludedir}`"
 eval infodir="`eval echo ${infodir}`"
 eval mandir="`eval echo ${mandir}`"
 
+if test x"${CONFIGDIR}" = x""; then
+    CONFIGDIR="${sysconfdir}/sysconfig"
+fi
+AC_SUBST(CONFIGDIR)
+
 dnl The Makefiles and shell scripts we output
-AC_CONFIG_FILES([Makefile src/Makefile agent/Makefile man/Makefile src/sbd.service src/sbd_remote.service])
+AC_CONFIG_FILES([Makefile src/Makefile agent/Makefile man/Makefile agent/sbd src/sbd.service src/sbd_remote.service src/sbd.sh])
 
 dnl Now process the entire list of files added by previous 
 dnl  calls to AC_CONFIG_FILES()
