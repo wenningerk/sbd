@@ -7,10 +7,10 @@ RefuseManualStart=true
 
 [Service]
 Type=forking
-PIDFile=/var/run/sbd.pid
-EnvironmentFile=-/etc/sysconfig/sbd
-ExecStart=/usr/sbin/sbd $SBD_OPTS -p /var/run/sbd.pid watch
-ExecStop=/usr/bin/kill -TERM $MAINPID
+PIDFile=@localstatedir@/run/sbd.pid
+EnvironmentFile=-@CONFIGDIR@/sbd
+ExecStart=@sbindir@/sbd $SBD_OPTS -p @localstatedir@/run/sbd.pid watch
+ExecStop=@bindir@/kill -TERM $MAINPID
 
 # Could this benefit from exit codes for restart?
 # Does this need to be set to msgwait * 1.2?

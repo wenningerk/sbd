@@ -17,7 +17,7 @@
 # 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
 #
 
-SBD_CONFIG=/etc/sysconfig/sbd
+SBD_CONFIG=@CONFIGDIR@/sbd
 SBD_BIN="/usr/sbin/sbd"
 
 test -x $SBD_BIN || exit 1
