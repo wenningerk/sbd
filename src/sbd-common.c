@@ -487,10 +487,8 @@ do_exit(char kind)
     } else {
         watchdog_close(false);
         sysrq_trigger(kind);
-        if (kind != 'o') {
-            if(reboot(RB_AUTOBOOT) < 0) {
-                cl_perror("Reboot failed");
-            }
+        if (reboot((kind == 'o')?RB_POWER_OFF:RB_AUTOBOOT) < 0) {
+            cl_perror("%s failed", (kind == 'o')?"Poweroff":"Reboot");
         }
     }
 
