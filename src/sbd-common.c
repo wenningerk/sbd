@@ -694,3 +694,36 @@ set_servant_health(enum pcmk_health state, int level, char const *format, ...)
         free(string);
     }
 }
+
+bool
+sbd_is_disk(struct servants_list_item *servant)
+{
+    if ((servant != NULL) &&
+        (servant->devname != NULL) &&
+        (servant->devname[0] == '/')) {
+        return true;
+    }
+    return false;
+}
+
+bool
+sbd_is_cluster(struct servants_list_item *servant)
+{
+    if ((servant != NULL) &&
+        (servant->devname != NULL) &&
+        (strcmp("cluster", servant->devname) == 0)) {
+        return true;
+    }
+    return false;
+}
+
+bool
+sbd_is_pcmk(struct servants_list_item *servant)
+{
+    if ((servant != NULL) &&
+        (servant->devname != NULL) &&
+        (strcmp("pcmk", servant->devname) == 0)) {
+        return true;
+    }
+    return false;
+}
