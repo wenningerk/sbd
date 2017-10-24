@@ -33,7 +33,9 @@
 #include <crm/cluster.h>
 #include <crm/common/mainloop.h>
 
+#if CHECK_TWO_NODE
 #include <glib-unix.h>
+#endif
 
 #include "sbd.h"
 
@@ -73,13 +75,13 @@ sbd_plugin_membership_dispatch(cpg_handle_t handle,
 
 static bool two_node = false;
 static bool ever_seen_both = false;
+static int cpg_membership_entries = -1;
 
 #if CHECK_TWO_NODE
 #include <corosync/cmap.h>
 
 static cmap_handle_t cmap_handle = 0;
 static cmap_track_handle_t track_handle = 0;
-static int cpg_membership_entries = -1;
 static GSource *cmap_source = NULL;
 #endif
 
