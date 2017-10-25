@@ -36,6 +36,7 @@ sbd_setup() {
 		losetup ${L[$N]} ${F[$N]}
 		D[$N]="/dev/mapper/sbd_$N"
 		dmsetup create sbd_$N --table "0 2048 linear ${L[$N]} 0"
+		dmsetup mknodes sbd_$N
 	done
 }
 
@@ -63,7 +64,7 @@ _ok() {
 	rc=$?
 	if [ $rc -ne 0 ]; then
 		echo "$@ failed with $rc"
-		exit
+		exit $rc
 	fi
 }
 
@@ -73,7 +74,7 @@ _no() {
 	rc=$?
 	if [ $rc -eq 0 ]; then
 		echo "$@ did NOT fail ($rc)"
-		exit
+		exit $rc
 	fi
 	return 0
 }
