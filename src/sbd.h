@@ -124,6 +124,8 @@ int watchdog_tickle(void);
 int watchdog_init(void);
 void sysrq_init(void);
 void watchdog_close(bool disarm);
+int watchdog_info(void);
+int watchdog_test(void);
 void sysrq_trigger(char t);
 void do_crashdump(void);
 void do_reset(void);
@@ -149,6 +151,7 @@ extern int  skip_rt;
 extern int  debug;
 extern int  debug_mode;
 extern char *watchdogdev;
+extern bool watchdogdev_is_default;
 extern char*  local_uname;
 
 /* Global, non-tunable variables: */
