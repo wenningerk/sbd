@@ -267,7 +267,10 @@ If set to zero, processes will be restarted indefinitely and immediately.
 
 =item B<-P>
 
-Check Pacemaker quorum and node health.
+Enable Pacemaker integration which checks Pacemaker quorum and node health.
+Specify this once to enable, twice to disable.
+
+Defaults to I<enabled>.
 
 =item B<-S> I<N>
 

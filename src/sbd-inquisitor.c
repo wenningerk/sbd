@@ -23,8 +23,8 @@
 static struct servants_list_item *servants_leader = NULL;
 
 int     disk_priority = 1;
-int	check_pcmk = 0;
-int	check_cluster = 0;
+int	check_pcmk = 1;
+int	check_cluster = 1;
 int	disk_count	= 0;
 int	servant_count	= 0;
 int	servant_restart_interval = 5;
@@ -803,11 +803,19 @@ parse_device_line(const char *line)
     return found;
 }
 
+int
+arg_enabled(int arg_count)
+{
+    return arg_count % 2;
+}
+
 int main(int argc, char **argv, char **envp)
 {
 	int exit_status = 0;
 	int c;
-	int w = 0;
+	int W_count = 0;
+	int c_count = 0;
+	int P_count = 0;
         int qb_facility;
         const char *value = NULL;
         int start_delay = 0;
@@ -864,6 +872,13 @@ int main(int argc, char **argv, char **envp)
         if(value) {
             free(watchdogdev);
             watchdogdev = strdup(value);
+        }
+
+        /* SBD_WATCHDOG has been dropped from sbd.sysconfig example.
+         * This is for backward compatibility. */
+        value = getenv("SBD_WATCHDOG");
+        if(value) {
+            watchdog_use = crm_is_true(value);
         }
 
         value = getenv("SBD_WATCHDOG_TIMEOUT");
@@ -925,7 +940,7 @@ int main(int argc, char **argv, char **envp)
 			cl_log(LOG_INFO, "Setting watchdog timeout disabled; using defaults.");
 			break;
 		case 'W':
-			w++;
+			W_count++;
 			break;
 		case 'w':
                         cl_log(LOG_NOTICE, "Using watchdog device '%s'", watchdogdev);
@@ -942,10 +957,10 @@ int main(int argc, char **argv, char **envp)
 #endif
 			break;
 		case 'c':
-			check_cluster = 1;
+			c_count++;
 			break;
 		case 'P':
-			check_pcmk = 1;
+			P_count++;
 			break;
 		case 'z':
 			disk_priority = 0;
@@ -1008,17 +1023,25 @@ int main(int argc, char **argv, char **envp)
 		}
 	}
 
-	if (w > 0) {
-            watchdog_use = w % 2;
-
-	} else if(watchdogdev == NULL || strcmp(watchdogdev, "/dev/null") == 0) {
+	if (watchdogdev == NULL || strcmp(watchdogdev, "/dev/null") == 0) {
             watchdog_use = 0;
+
+	} else if (W_count > 0) {
+            watchdog_use = arg_enabled(W_count);
         }
 
 	if (watchdog_use) {
 		cl_log(LOG_INFO, "Watchdog enabled.");
 	} else {
 		cl_log(LOG_INFO, "Watchdog disabled.");
+	}
+
+	if (c_count > 0) {
+		check_cluster = arg_enabled(c_count);
+	}
+
+	if (P_count > 0) {
+		check_pcmk = arg_enabled(P_count);
 	}
 
 	if ((disk_count > 0) && (strlen(local_uname) > SECTOR_NAME_MAX)) {
