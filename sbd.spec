@@ -15,7 +15,7 @@
 
 # Please submit bugfixes or comments via http://bugs.opensuse.org/
 #
-%global commit 4ee36fa33b57a1ad95678363911cfb02a92e1edb
+%global commit a180176c23e57ee904ebb08ab449cfb3d90a0383
 %global shortcommit %(c=%{commit}; echo ${c:0:7})
 %global github_owner beekhof
 %global buildnum 1
@@ -24,7 +24,7 @@ Name:           sbd
 Summary:        Storage-based death
 License:        GPLv2+
 Group:          System Environment/Daemons
-Version:        1.3.0
+Version:        1.3.1
 Release:        0.%{buildnum}.%{shortcommit}.git%{?dist}
 Url:            https://github.com/%{github_owner}/%{name}
 Source0:        https://github.com/%{github_owner}/%{name}/archive/%{commit}/%{name}-%{commit}.tar.gz
@@ -114,6 +114,15 @@ rm -rf %{buildroot}
 %doc COPYING
 
 %changelog
+* Fri Nov  3 2017 <klaus.wenninger@aon.at> - 1.3.1-0.1.a180176c.git
+- Add commands to test/query watchdogs
+- Allow 2-node-operation with a single shared-disk
+- Overhaul of the command-line options & config-file
+- Proper handling of off instead of reboot
+- Refactored disk-servant for more robust communication with parent
+- Fix config for Debian + configurable location of config
+- Fixes in sbd.sh - multiple SBD devices and others
+
 * Sun Mar 26 2016 <klaus.wenninger@aon.at> - 1.3.0-0.1.4ee36fa3.git
 - Changes since v1.2.0 like adding the possibility to have a
   watchdog-only setup without shared-block-devices
