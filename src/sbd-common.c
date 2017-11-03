@@ -19,7 +19,10 @@
 #include "sbd.h"
 #include <sys/reboot.h>
 #include <sys/types.h>
+#include <sys/stat.h>
 #include <pwd.h>
+#include <unistd.h>
+#include <dirent.h>
 
 #ifdef _POSIX_MEMLOCK
 #  include <sys/mman.h>
@@ -46,6 +49,7 @@ int	skip_rt			= 0;
 int	debug			= 0;
 int	debug_mode		= 0;
 char *watchdogdev		= NULL;
+bool watchdogdev_is_default = false;
 char *	local_uname;
 
 /* Global, non-tunable variables: */
@@ -102,35 +106,53 @@ usage(void)
 "		Writes the specified message to node's slot.\n"
 #endif
 "watch		Loop forever, monitoring own slot\n"
+"query-watchdog	Check for available watchdog-devices and print some info\n"
+"test-watchdog	Test the watchdog-device selected.\n"
+"		Attention: This will arm the watchdog and have your system reset\n"
+"		           in case your watchdog is working properly!\n"
                 , cmdname);
 }
 
-int
-watchdog_init_interval(void)
+static int
+watchdog_init_interval_fd(int wdfd, int timeout)
 {
-	int     timeout = timeout_watchdog;
-
-	if (watchdogfd < 0) {
-		return 0;
-	}
-
-
-	if (watchdog_set_timeout == 0) {
-		cl_log(LOG_INFO, "NOT setting watchdog timeout on explicit user request!");
-		return 0;
-	}
-
-	if (ioctl(watchdogfd, WDIOC_SETTIMEOUT, &timeout) < 0) {
+	if (ioctl(wdfd, WDIOC_SETTIMEOUT, &timeout) < 0) {
 		cl_perror( "WDIOC_SETTIMEOUT"
 				": Failed to set watchdog timer to %u seconds.",
 				timeout);
 		cl_log(LOG_CRIT, "Please validate your watchdog configuration!");
 		cl_log(LOG_CRIT, "Choose a different watchdog driver or specify -T to skip this if you are completely sure.");
 		return -1;
-	} else {
-		cl_log(LOG_INFO, "Set watchdog timeout to %u seconds.",
-				timeout);
 	}
+	return 0;
+}
+
+int
+watchdog_init_interval(void)
+{
+	if (watchdogfd < 0) {
+		return 0;
+	}
+
+	if (watchdog_set_timeout == 0) {
+		cl_log(LOG_INFO, "NOT setting watchdog timeout on explicit user request!");
+		return 0;
+	}
+
+	if (watchdog_init_interval_fd(watchdogfd, timeout_watchdog) < 0) {
+		return -1;
+	}
+	cl_log(LOG_INFO, "Set watchdog timeout to %u seconds.", (int) timeout_watchdog);
+	return 0;
+}
+
+static int
+watchdog_tickle_fd(int wdfd, char *wddev)
+{
+	if (write(wdfd, "", 1) != 1) {
+			cl_perror("Watchdog write failure: %s!", wddev);
+			return -1;
+		}
 	return 0;
 }
 
@@ -138,32 +160,78 @@ int
 watchdog_tickle(void)
 {
 	if (watchdogfd >= 0) {
-		if (write(watchdogfd, "", 1) != 1) {
-			cl_perror("Watchdog write failure: %s!",
-					watchdogdev);
-			return -1;
-		}
+		return watchdog_tickle_fd(watchdogfd, watchdogdev);
 	}
 	return 0;
+}
+
+static int
+watchdog_init_fd(char *wddev, int timeout)
+{
+	int wdfd;
+
+	wdfd = open(wddev, O_WRONLY);
+	if (wdfd >= 0) {
+		if (((timeout >= 0) && (watchdog_init_interval_fd(wdfd, timeout) < 0))
+					|| (watchdog_tickle_fd(wdfd, wddev) < 0)) {
+			close(wdfd);
+			return -1;
+		}
+	} else {
+		cl_perror("Cannot open watchdog device '%s'", wddev);
+		return -1;
+	}
+	return wdfd;
 }
 
 int
 watchdog_init(void)
 {
 	if (watchdogfd < 0 && watchdogdev != NULL) {
-		watchdogfd = open(watchdogdev, O_WRONLY);
+		int timeout = timeout_watchdog;
+
+		if (watchdog_set_timeout == 0) {
+			cl_log(LOG_INFO, "NOT setting watchdog timeout on explicit user request!");
+			timeout = -1;
+		}
+		watchdogfd = watchdog_init_fd(watchdogdev, timeout);
 		if (watchdogfd >= 0) {
 			cl_log(LOG_NOTICE, "Using watchdog device '%s'", watchdogdev);
-			if ((watchdog_init_interval() < 0)
-					|| (watchdog_tickle() < 0)) {
-				return -1;
+			if (watchdog_set_timeout) {
+				cl_log(LOG_INFO, "Set watchdog timeout to %u seconds.", (int) timeout_watchdog);
 			}
-		}else{
-			cl_perror("Cannot open watchdog device '%s'", watchdogdev);
+		} else {
 			return -1;
 		}
 	}
 	return 0;
+}
+
+static void
+watchdog_close_fd(int wdfd, char *wddev, bool disarm)
+{
+    if (disarm) {
+        int r;
+        int flags = WDIOS_DISABLECARD;;
+
+        /* Explicitly disarm it */
+        r = ioctl(wdfd, WDIOC_SETOPTIONS, &flags);
+        if (r < 0) {
+            cl_perror("Failed to disable hardware watchdog %s", wddev);
+        }
+
+        /* To be sure, use magic close logic, too */
+        for (;;) {
+            if (write(wdfd, "V", 1) > 0) {
+                break;
+            }
+            cl_perror("Cannot disable watchdog device %s", wddev);
+        }
+    }
+
+    if (close(wdfd) < 0) {
+        cl_perror("Watchdog close(%d) failed", wdfd);
+    }
 }
 
 void
@@ -173,30 +241,201 @@ watchdog_close(bool disarm)
         return;
     }
 
-    if (disarm) {
-        int r;
-        int flags = WDIOS_DISABLECARD;;
-
-        /* Explicitly disarm it */
-        r = ioctl(watchdogfd, WDIOC_SETOPTIONS, &flags);
-        if (r < 0) {
-            cl_perror("Failed to disable hardware watchdog %s", watchdogdev);
-        }
-
-        /* To be sure, use magic close logic, too */
-        for (;;) {
-            if (write(watchdogfd, "V", 1) > 0) {
-                break;
-            }
-            cl_perror("Cannot disable watchdog device %s", watchdogdev);
-        }
-    }
-
-    if (close(watchdogfd) < 0) {
-        cl_perror("Watchdog close(%d) failed", watchdogfd);
-    }
-
+    watchdog_close_fd(watchdogfd, watchdogdev, disarm);
     watchdogfd = -1;
+}
+
+#define MAX_WATCHDOGS 64
+#define SYS_CLASS_WATCHDOG "/sys/class/watchdog"
+#define SYS_CHAR_DEV_DIR "/sys/dev/char"
+#define WATCHDOG_NODEDIR "/dev"
+
+struct watchdog_list_item {
+	dev_t dev;
+	char *dev_node;
+	char *dev_ident;
+	char *dev_driver;
+	struct watchdog_list_item *next;
+};
+
+static struct watchdog_list_item *watchdog_list = NULL;
+static int watchdog_list_items = 0;
+
+static void
+watchdog_populate_list(void)
+{
+	dev_t watchdogs[MAX_WATCHDOGS + 1] =
+		{makedev(10,130), 0};
+	int num_watchdogs = 1;
+	struct dirent *entry;
+	char entry_name[64];
+	DIR *dp;
+	char buf[256] = "";
+
+	if (watchdog_list != NULL) {
+		return;
+	}
+
+	/* get additional devices from /sys/class/watchdog */
+	dp = opendir(SYS_CLASS_WATCHDOG);
+	if (dp) {
+		while ((entry = readdir(dp))) {
+			if (entry->d_type == DT_LNK) {
+				FILE *file;
+
+				snprintf(entry_name, sizeof(entry_name),
+						SYS_CLASS_WATCHDOG "/%s/dev", entry->d_name);
+				file = fopen(entry_name, "r");
+				if (file) {
+					int major, minor;
+
+					if (fscanf(file, "%d:%d", &major, &minor) == 2) {
+						watchdogs[num_watchdogs++] = makedev(major, minor);
+					}
+					fclose(file);
+					if (num_watchdogs == MAX_WATCHDOGS) {
+						break;
+					}
+				}
+			}
+		}
+		closedir(dp);
+	}
+
+	/* search for watchdog nodes in /dev */
+	dp = opendir(WATCHDOG_NODEDIR);
+	if (dp) {
+		while ((entry = readdir(dp))) {
+			if ((entry->d_type == DT_CHR) || (entry->d_type == DT_LNK)) {
+				struct stat statbuf;
+
+				snprintf(entry_name, sizeof(entry_name),
+						WATCHDOG_NODEDIR "/%s", entry->d_name);
+				if(!stat(entry_name, &statbuf) && S_ISCHR(statbuf.st_mode)) {
+					int i;
+
+					for (i=0; i<num_watchdogs; i++) {
+						if (statbuf.st_rdev == watchdogs[i]) {
+							int wdfd = watchdog_init_fd(entry_name, -1);
+							struct watchdog_list_item *wdg =
+									calloc(1, sizeof(struct watchdog_list_item));
+
+							wdg->dev = watchdogs[i];
+							wdg->dev_node = strdup(entry_name);
+							wdg->next = watchdog_list;
+							watchdog_list = wdg;
+							watchdog_list_items++;
+
+							if (wdfd >= 0) {
+								struct watchdog_info ident;
+
+								ident.identity[0] = '\0';
+								ioctl(wdfd, WDIOC_GETSUPPORT, &ident);
+								watchdog_close_fd(wdfd, entry_name, true);
+								if (ident.identity[0]) {
+									wdg->dev_ident = strdup((char *) ident.identity);
+								}
+							}
+
+							snprintf(entry_name, sizeof(entry_name),
+								SYS_CHAR_DEV_DIR "/%d:%d/device/driver",
+								major(watchdogs[i]), minor(watchdogs[i]));
+							if (readlink(entry_name, buf, sizeof(buf)) > 0) {
+								wdg->dev_driver = strdup(basename(buf));
+							} else if ((wdg->dev_ident) &&
+										(strcmp(wdg->dev_ident,
+												"Software Watchdog") == 0)) {
+								wdg->dev_driver = strdup("softdog");
+							}
+							break;
+						}
+					}
+				}
+			}
+		}
+		closedir(dp);
+	}
+}
+
+int watchdog_info(void)
+{
+	struct watchdog_list_item *wdg;
+	int wdg_cnt = 0;
+
+	watchdog_populate_list();
+	printf("\nDiscovered %d watchdog devices:\n", watchdog_list_items);
+	for (wdg = watchdog_list; wdg != NULL; wdg = wdg->next) {
+		wdg_cnt++;
+		printf("\n[%d] %s\nIdentity: %s\nDriver: %s\n",
+				wdg_cnt, wdg->dev_node,
+				wdg->dev_ident?wdg->dev_ident:"Error: Check if hogged by e.g. sbd-daemon!",
+				wdg->dev_driver?wdg->dev_driver:"<unknown>");
+		if ((wdg->dev_driver) && (strcmp(wdg->dev_driver, "softdog") == 0)) {
+			printf("CAUTION: Not recommended for use with sbd.\n"); 
+		}
+	}
+
+	return 0;
+}
+
+int watchdog_test(void)
+{
+	int i;
+
+	if ((watchdog_set_timeout == 0) || !watchdog_use) {
+		printf("\nWatchdog is disabled - aborting test!!!\n");
+		return 0;
+	}
+	if (watchdogdev_is_default) {
+		watchdog_populate_list();
+		if (watchdog_list_items > 1) {
+			printf("\nError: Multiple watchdog devices discovered.\n"
+				   "       Use -w <watchdog> or SBD_WATCHDOG_DEV to specify\n"
+				   "       which device to reset the system with\n");
+			watchdog_info();
+			return -1;
+		}
+	}
+	if ((isatty(fileno(stdin)))) {
+		char buffer[16];
+		printf("\nWARNING: This operation is expected to force-reboot this system\n"
+			   "         without following any shutdown procedures.\n\n"
+			   "Proceed? [NO/Proceed] ");
+
+		if ((fgets(buffer, 16, stdin) == NULL) ||
+			strcmp(buffer, "Proceed\n")) {
+			printf("\nAborting watchdog test!!!\n");
+			return 0;
+		}
+		printf("\n");
+	}
+	printf("Initializing %s with a reset countdown of %d seconds ...\n",
+		watchdogdev, (int) timeout_watchdog);
+	if ((watchdog_init() < 0) || (watchdog_init_interval() < 0)) {
+		printf("Failed to initialize watchdog!!!\n");
+		return -1;
+	}
+	printf("\n");
+	printf("NOTICE: The watchdog device is expected to reset the system\n"
+		   "        in %d seconds.  If system remains active beyond that time,\n"
+		   "        watchdog may not be functional.\n\n", (int) timeout_watchdog);
+	for (i=timeout_watchdog; i>1; i--) {
+		printf("Reset countdown ... %d seconds\n", i);
+		sleep(1);
+	}
+	for (i=2; i>0; i--) {
+		printf("System expected to reset any moment ...\n");
+		sleep(1);
+	}
+	for (i=5; i>0; i--) {
+		printf("System should have reset ...\n");
+		sleep(1);
+	}
+	printf("Error: The watchdog device has failed to reboot the system,\n"
+		   "       and it may not be suitable for usage with sbd.\n");
+
+	/* test should trigger a reboot thus returning is actually bad */
+	return -1;
 }
 
 /* This duplicates some code from linux/ioprio.h since these are not included

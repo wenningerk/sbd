@@ -827,6 +827,7 @@ int main(int argc, char **argv, char **envp)
 	}
 
         watchdogdev = strdup("/dev/watchdog");
+        watchdogdev_is_default = true;
         qb_facility = qb_log_facility2int("daemon");
         qb_log_init(cmdname, qb_facility, LOG_WARNING);
         sbd_set_format_string(QB_LOG_SYSLOG, "sbd");
@@ -872,6 +873,7 @@ int main(int argc, char **argv, char **envp)
         if(value) {
             free(watchdogdev);
             watchdogdev = strdup(value);
+            watchdogdev_is_default = false;
         }
 
         /* SBD_WATCHDOG has been dropped from sbd.sysconfig example.
@@ -946,6 +948,7 @@ int main(int argc, char **argv, char **envp)
                         cl_log(LOG_NOTICE, "Using watchdog device '%s'", watchdogdev);
                         free(watchdogdev);
                         watchdogdev = strdup(optarg);
+                        watchdogdev_is_default = false;
 			break;
 		case 'd':
 #if SUPPORT_SHARED_DISK
@@ -1106,8 +1109,12 @@ int main(int argc, char **argv, char **envp)
 		exit_status = -2;
 	}
 #endif
-        
-        if (strcmp(argv[optind], "watch") == 0) {
+
+        if (strcmp(argv[optind], "query-watchdog") == 0) {
+            exit_status = watchdog_info();
+        } else if (strcmp(argv[optind], "test-watchdog") == 0) {
+            exit_status = watchdog_test();
+        } else if (strcmp(argv[optind], "watch") == 0) {
             /* sleep $(sbd $SBD_DEVICE_ARGS dump | grep -m 1 msgwait | awk '{print $4}') 2>/dev/null */
 
                 /* We only want this to have an effect during watch right now;
