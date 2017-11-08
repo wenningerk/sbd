@@ -268,7 +268,7 @@ watchdog_populate_list(void)
 		{makedev(10,130), 0};
 	int num_watchdogs = 1;
 	struct dirent *entry;
-	char entry_name[64];
+	char entry_name[280];
 	DIR *dp;
 	char buf[256] = "";
 
