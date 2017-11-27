@@ -19,6 +19,9 @@
 #include "sbd.h"
 #include <sys/reboot.h>
 #include <sys/types.h>
+#ifdef __GLIBC__
+#include <sys/sysmacros.h>
+#endif
 #include <sys/stat.h>
 #include <pwd.h>
 #include <unistd.h>
