@@ -7,9 +7,9 @@ env:
     - OS_ARCH=x86_64
     - PACKAGE=sbd
   matrix:
-    - OS_TYPE=centos OS_DIST=epel OS_VERSION=7
-    - OS_TYPE=centos OS_DIST=epel OS_VERSION=6
-    - OS_TYPE=fedora OS_DIST=fedora OS_VERSION=27
+    - OS_TYPE=centos OS_DIST=centos OS_VERSION=7
+    - OS_TYPE=centos OS_DIST=centos OS_VERSION=6
+    - OS_TYPE=fedora OS_DIST= OS_VERSION=27
 
 services:
   - docker
@@ -21,6 +21,6 @@ script:
   - docker pull ${DOCKER_BUILD_IMAGE}:${OS_TYPE}-${OS_VERSION}
   - docker run -v ${PWD}:/sources -v ${PWD}:/output ${DOCKER_BUILD_IMAGE}:${OS_TYPE}-${OS_VERSION}
   - ls ${PWD}/sbd*.${OS_ARCH}.rpm
-  - docker pull ${OS_TYPE}:${OS_TYPE}${OS_VERSION}
-  - docker run --privileged -v ${PWD}:/rpms -v ${PWD}/tests:/tests ${OS_TYPE}:${OS_TYPE}${OS_VERSION} /bin/bash -c "yum install -y device-mapper /rpms/${PACKAGE}*.${OS_ARCH}.rpm && /tests/regressions.sh && touch /rpms/regressions.sh.SUCCESS"
+  - docker pull ${OS_TYPE}:${OS_DIST}${OS_VERSION}
+  - docker run --privileged -v ${PWD}:/rpms -v ${PWD}/tests:/tests ${OS_TYPE}:${OS_DIST}${OS_VERSION} /bin/bash -c "yum install -y device-mapper /rpms/${PACKAGE}*.${OS_ARCH}.rpm && /tests/regressions.sh && touch /rpms/regressions.sh.SUCCESS"
   - ls ${PWD}/regressions.sh.SUCCESS
