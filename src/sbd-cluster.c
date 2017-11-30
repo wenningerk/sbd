@@ -238,12 +238,16 @@ notify_timer_cb(gpointer data)
     }
 
     switch (get_cluster_type()) {
+#if HAVE_DECL_PCMK_CLUSTER_CLASSIC_AIS
         case pcmk_cluster_classic_ais:
             send_cluster_text(crm_class_quorum, NULL, TRUE, NULL, crm_msg_ais);
             break;
 
+#endif
         case pcmk_cluster_corosync:
+#if HAVE_DECL_PCMK_CLUSTER_CMAN
         case pcmk_cluster_cman:
+#endif
             /* TODO - Make a CPG call and only call notify_parent() when we get a reply */
             notify_parent();
             break;

@@ -72,6 +72,10 @@ AC_CHECK_HEADERS(pacemaker/crm/cluster.h)
 AC_CHECK_LIB(crmcommon, pcmk_strerror, , missing="yes")
 AC_CHECK_LIB(cib, cib_apply_patch_event, , missing="yes")
 
+dnl pacemaker-2.0 removed support for corosync 1 cluster layer
+AC_CHECK_DECLS([pcmk_cluster_classic_ais, pcmk_cluster_cman],,,
+	       [#include <pacemaker/crm/cluster.h>])
+
 if test "$missing" = "yes"; then
    AC_MSG_ERROR([Missing required libraries or functions.])
 fi
