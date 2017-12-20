@@ -931,17 +931,20 @@ int dump_headers(struct servants_list_item *servants)
 	struct sbd_context *st;
 
 	for (s = servants; s; s = s->next) {
+		int rv;
+
 		fprintf(stdout, "==Dumping header on disk %s\n", s->devname);
 		st = open_device(s->devname, LOG_WARNING);
-		if (!st) {
+		if (st) {
+			rv = header_dump(st);
+			close_device(st);
+		} else {
 			fprintf(stdout, "== disk %s unreadable!\n", s->devname);
-			continue;
+			rv = -1;
 		}
 
-		rc = header_dump(st);
-		close_device(st);
-
-		if (rc == -1) {
+		if (rv == -1) {
+			rc = -1;
 			fprintf(stdout, "==Header on disk %s NOT dumped\n", s->devname);
 		} else {
 			fprintf(stdout, "==Header on disk %s is dumped\n", s->devname);
