@@ -21,4 +21,4 @@ Restart=on-abort
 
 [Install]
 RequiredBy=pacemaker_remote.service
-
+RequiredBy=dlm.service
