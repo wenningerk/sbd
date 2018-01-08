@@ -394,6 +394,30 @@ a fencing message by the cluster.
 
 =back
 
+=head2 query-watchdog
+
+Example usage:
+
+	sbd query-watchdog
+
+Check for available watchdog devices and print some info.
+
+B<Warning>: This command will arm the watchdog during query, and if your
+watchdog refuses disarming (for example, if its kernel module has the
+'nowayout' parameter set) this will reset your system.
+
+=head2 test-watchdog
+
+Example usage:
+
+	sbd test-watchdog [-w /dev/watchdog3]
+
+Test specified watchdog device (/dev/watchdog by default).
+
+B<Warning>: This command will arm the watchdog and have your system reset
+in case your watchdog is working properly! If issued from an interactive
+session, it will prompt for confirmation.
+
 =head1 Base system configuration
 
 =head2 Configure a watchdog
