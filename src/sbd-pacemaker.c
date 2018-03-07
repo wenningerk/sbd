@@ -109,6 +109,38 @@ mon_cib_connection_destroy(gpointer user_data)
 	return;
 }
 
+static void
+mon_retrieve_current_cib()
+{
+	xmlNode *xml_cib = NULL;
+	int options = cib_scope_local | cib_sync_call;
+	int rc = pcmk_ok;
+
+	free_xml(current_cib);
+	current_cib = NULL;
+
+	rc = cib->cmds->query(cib, NULL, &xml_cib, options);
+
+	if (rc != pcmk_ok) {
+		crm_err("Couldn't retrieve the CIB: %s (%d)", pcmk_strerror(rc), rc);
+		free_xml(xml_cib);
+		return;
+
+	} else if (xml_cib == NULL) {
+		crm_err("Couldn't retrieve the CIB: empty result");
+		return;
+	}
+
+	if (safe_str_eq(crm_element_name(xml_cib), XML_TAG_CIB)) {
+		current_cib = xml_cib;
+
+	} else {
+		free_xml(xml_cib);
+	}
+
+	return;
+}
+
 static gboolean
 mon_timer_notify(gpointer data)
 {
@@ -121,8 +153,7 @@ mon_timer_notify(gpointer data)
 
 	if (cib_connected) {
 		if (counter == counter_max) {
-			free_xml(current_cib);
-			current_cib = get_cib_copy(cib);
+			mon_retrieve_current_cib();
 			mon_refresh_state(NULL);
 			counter = 0;
 		} else {
@@ -163,7 +194,7 @@ cib_connect(gboolean full)
 			return rc;
 		}
 
-		current_cib = get_cib_copy(cib);
+		mon_retrieve_current_cib();
 		mon_refresh_state(NULL);
 
 		if (full) {
@@ -308,7 +339,7 @@ crm_diff_update(const char *event, xmlNode * msg)
 	}
 
 	if (current_cib == NULL) {
-		current_cib = get_cib_copy(cib);
+		mon_retrieve_current_cib();
 	}
 
     /* Refresh
