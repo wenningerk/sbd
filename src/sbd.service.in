@@ -1,5 +1,6 @@
 [Unit]
 Description=Shared-storage based fencing daemon
+Documentation=man:sbd(8)
 Before=pacemaker.service
 Before=dlm.service
 After=systemd-modules-load.service iscsi.service
