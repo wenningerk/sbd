@@ -803,6 +803,19 @@ parse_device_line(const char *line)
     return found;
 }
 
+#define SBD_SOURCE_FILES "sbd-cluster.c,sbd-common.c,sbd-inquisitor.c,sbd-md.c,sbd-pacemaker.c,setproctitle.c"
+
+static void
+sbd_log_filter_ctl(const char *files, uint8_t priority)
+{
+	if (files == NULL) {
+		files = SBD_SOURCE_FILES;
+	}
+
+	qb_log_filter_ctl(QB_LOG_SYSLOG, QB_LOG_FILTER_ADD, QB_LOG_FILTER_FILE, files, priority);
+	qb_log_filter_ctl(QB_LOG_STDERR, QB_LOG_FILTER_ADD, QB_LOG_FILTER_FILE, files, priority);
+}
+
 int
 arg_enabled(int arg_count)
 {
@@ -834,6 +847,7 @@ int main(int argc, char **argv, char **envp)
 
         qb_log_ctl(QB_LOG_SYSLOG, QB_LOG_CONF_ENABLED, QB_TRUE);
         qb_log_ctl(QB_LOG_STDERR, QB_LOG_CONF_ENABLED, QB_FALSE);
+        sbd_log_filter_ctl(NULL, LOG_NOTICE);
 
 	sbd_get_uname();
 
@@ -926,15 +940,17 @@ int main(int argc, char **argv, char **envp)
 		case 'v':
                     debug++;
                     if(debug == 1) {
-                        qb_log_filter_ctl(QB_LOG_SYSLOG, QB_LOG_FILTER_ADD, QB_LOG_FILTER_FILE, "sbd-common.c,sbd-inquisitor.c,sbd-md.c,sbd-pacemaker.c", LOG_DEBUG);
-                        qb_log_filter_ctl(QB_LOG_STDERR, QB_LOG_FILTER_ADD, QB_LOG_FILTER_FILE, "sbd-common.c,sbd-inquisitor.c,sbd-md.c,sbd-pacemaker.c", LOG_DEBUG);
-			cl_log(LOG_INFO, "Verbose mode enabled.");
+                        sbd_log_filter_ctl(NULL, LOG_INFO);
+                        cl_log(LOG_INFO, "Verbose mode enabled.");
 
                     } else if(debug == 2) {
+                        sbd_log_filter_ctl(NULL, LOG_DEBUG);
+                        cl_log(LOG_INFO, "Debug mode enabled.");
+
+                    } else if(debug == 3) {
                         /* Go nuts, turn on pacemaker's logging too */
-                        qb_log_filter_ctl(QB_LOG_SYSLOG, QB_LOG_FILTER_ADD, QB_LOG_FILTER_FILE, "*", LOG_DEBUG);
-                        qb_log_filter_ctl(QB_LOG_STDERR, QB_LOG_FILTER_ADD, QB_LOG_FILTER_FILE, "*", LOG_DEBUG);
-			cl_log(LOG_INFO, "Verbose library mode enabled.");
+                        sbd_log_filter_ctl("*", LOG_DEBUG);
+                        cl_log(LOG_INFO, "Debug library mode enabled.");
                     }
                     break;
 		case 'T':
