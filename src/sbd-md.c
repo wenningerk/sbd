@@ -1097,7 +1097,7 @@ int servant(const char *diskname, int mode, const void* argp)
 		exit(EXIT_MD_IO_FAIL);
 	}
 
-	DBGLOG(LOG_INFO, "Monitoring slot %d on disk %s", mbox, diskname);
+	cl_log(LOG_NOTICE, "Monitoring slot %d on disk %s", mbox, diskname);
 	if (s_header->minor_version == 0) {
 		set_proc_title("sbd: watcher: %s - slot: %d", diskname, mbox);
 	} else {
@@ -1180,7 +1180,7 @@ int servant(const char *diskname, int mode, const void* argp)
 		}
 
 		if (s_mbox->cmd > 0) {
-			cl_log(LOG_INFO,
+			cl_log(LOG_NOTICE,
 			       "Received command %s from %s on disk %s",
 			       char2cmd(s_mbox->cmd), s_mbox->from, diskname);
 
@@ -1222,7 +1222,7 @@ int servant(const char *diskname, int mode, const void* argp)
 			       (int)latency, (int)timeout_watchdog_warn,
 			       diskname);
 		} else if (debug) {
-			DBGLOG(LOG_INFO, "Latency: %d on disk %s", (int)latency,
+			DBGLOG(LOG_DEBUG, "Latency: %d on disk %s", (int)latency,
 			       diskname);
 		}
 	}

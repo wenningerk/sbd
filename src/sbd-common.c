@@ -893,7 +893,7 @@ notify_parent(void)
         case pcmk_health_pending:
         case pcmk_health_shutdown:
         case pcmk_health_transient:
-            DBGLOG(LOG_INFO, "Not notifying parent: state transient (%d)", servant_health);
+            DBGLOG(LOG_DEBUG, "Not notifying parent: state transient (%d)", servant_health);
             break;
 
         case pcmk_health_unknown:
@@ -904,7 +904,7 @@ notify_parent(void)
             break;
 
         case pcmk_health_online:
-            DBGLOG(LOG_INFO, "Notifying parent: healthy");
+            DBGLOG(LOG_DEBUG, "Notifying parent: healthy");
             sigqueue(ppid, SIG_LIVENESS, signal_value);
             break;
 

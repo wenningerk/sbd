@@ -64,7 +64,7 @@ void recruit_servant(const char *devname, pid_t pid)
 
 	servant_count++;
         if(sbd_is_disk(newbie)) {
-            cl_log(LOG_NOTICE, "Monitoring %s", devname);
+            cl_log(LOG_INFO, "Monitoring %s", devname);
             disk_count++;
         } else {
             newbie->outdated = 1;
@@ -565,7 +565,7 @@ void inquisitor_child(void)
                     if(cluster_alive(true)) {
                         /* We LIVE! */
                         if(cluster_appeared == false) {
-                            cl_log(LOG_NOTICE, "Active cluster detected");
+                            cl_log(LOG_INFO, "Active cluster detected");
                         }
                         tickle = 1;
                         can_detach = 1;
@@ -574,7 +574,7 @@ void inquisitor_child(void)
                     } else if(cluster_alive(false)) {
                         if(!decoupled) {
                             /* On the way up, detach and arm the watchdog */
-                            cl_log(LOG_NOTICE, "Partial cluster detected, detaching");
+                            cl_log(LOG_INFO, "Partial cluster detected, detaching");
                         }
 
                         can_detach = 1;
