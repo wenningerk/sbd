@@ -42,6 +42,13 @@
 //undef SUPPORT_PLUGIN
 //define SUPPORT_PLUGIN 1
 
+/* binary for pacemaker-remote has changed with pacemaker 2 */
+#ifdef CRM_SCORE_INFINITY
+#define PACEMAKER_REMOTE_BINARY "pacemaker-remoted"
+#else
+#define PACEMAKER_REMOTE_BINARY "pacemaker_remoted"
+#endif
+
 static bool remote_node = false;
 static pid_t remoted_pid = 0;
 static int reconnect_msec = 1000;
@@ -435,7 +442,7 @@ sbd_remote_check(gpointer user_data)
 
     } else {
         int rc = 0;
-        char proc_path[PATH_MAX], exe_path[PATH_MAX], expected_path[PATH_MAX];
+        char proc_path[PATH_MAX], exe_path[PATH_MAX];
 
         /* check to make sure pid hasn't been reused by another process */
         snprintf(proc_path, sizeof(proc_path), "/proc/%lu/exe", (long unsigned int)remoted_pid);
@@ -447,10 +454,7 @@ sbd_remote_check(gpointer user_data)
         }
         exe_path[rc] = 0;
 
-        rc = snprintf(expected_path, sizeof(proc_path), "%s/pacemaker_remoted", SBINDIR);
-        expected_path[rc] = 0;
-
-        if (strcmp(exe_path, expected_path) == 0) {
+        if (strcmp(exe_path, SBINDIR "/" PACEMAKER_REMOTE_BINARY) == 0) {
             cl_log(LOG_DEBUG, "Process %s (%ld) is active",
                    exe_path, (long)remoted_pid);
             running = 1;
@@ -499,7 +503,7 @@ find_pacemaker_remote(void)
 
         /* entry_name is truncated to 16 characters including the nul terminator */
         cl_log(LOG_DEBUG, "Found %s at %u", entry_name, pid);
-        if (strcmp(entry_name, "pacemaker_remot") == 0) {
+        if (strncmp(entry_name, PACEMAKER_REMOTE_BINARY, 15) == 0) {
             cl_log(LOG_NOTICE, "Found Pacemaker Remote at PID %u", pid);
             remoted_pid = pid;
             remote_node = true;
