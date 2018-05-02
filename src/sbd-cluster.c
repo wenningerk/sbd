@@ -338,7 +338,7 @@ sbd_membership_destroy(gpointer user_data)
  * \brief Get process ID and name associated with a /proc directory entry
  *
  * \param[in]  entry    Directory entry (must be result of readdir() on /proc)
- * \param[out] name     If not NULL, a char[64] to hold the process name
+ * \param[out] name     If not NULL, a char[16] to hold the process name
  * \param[out] pid      If not NULL, will be set to process ID of entry
  *
  * \return 0 on success, -1 if entry is not for a process or info not found
@@ -353,7 +353,7 @@ sbd_procfs_process_info(struct dirent *entry, char *name, int *pid)
     int fd, local_pid;
     FILE *file;
     struct stat statbuf;
-    char key[16] = { 0 }, procpath[128] = { 0 };
+    char procpath[128] = { 0 };
 
     /* We're only interested in entries whose name is a PID,
      * so skip anything non-numeric or that is too long.
@@ -396,8 +396,7 @@ sbd_procfs_process_info(struct dirent *entry, char *name, int *pid)
         if (!file) {
             return -1;
         }
-        if ((fscanf(file, "%15s%63s", key, name) != 2)
-            || safe_str_neq(key, "Name:")) {
+        if (fscanf(file, "Name:\t%15[a-zA-Z0-9 _-]", name) != 1) {
             fclose(file);
             return -1;
         }
@@ -484,7 +483,7 @@ static long unsigned int
 find_pacemaker_remote(void)
 {
     DIR *dp;
-    char entry_name[64];
+    char entry_name[16];
     struct dirent *entry;
 
     dp = opendir("/proc");
