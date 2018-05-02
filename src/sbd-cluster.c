@@ -201,10 +201,11 @@ sbd_get_two_node(void)
     }
 
     if (cmap_get_uint8(cmap_handle, "quorum.two_node", &two_node_u8) == CS_OK) {
-        cl_log(LOG_NOTICE, "Corosync is%s in 2Node-mode", two_node_u8?"":" not");
+        cl_log(two_node_u8? LOG_NOTICE : LOG_INFO,
+               "Corosync is%s in 2Node-mode", two_node_u8?"":" not");
         two_node = two_node_u8;
     } else {
-        cl_log(LOG_NOTICE, "quorum.two_node present in cmap\n");
+        cl_log(LOG_INFO, "quorum.two_node not present in cmap\n");
     }
     return TRUE;
 
@@ -264,7 +265,7 @@ sbd_membership_connect(void)
 {
     bool connected = false;
 
-    cl_log(LOG_NOTICE, "Attempting cluster connection");
+    cl_log(LOG_INFO, "Attempting cluster connection");
 
     cluster.destroy = sbd_membership_destroy;
 
@@ -308,7 +309,7 @@ sbd_membership_connect(void)
         }
     }
 
-    set_servant_health(pcmk_health_transient, LOG_NOTICE, "Connected, waiting for initial membership");
+    set_servant_health(pcmk_health_transient, LOG_INFO, "Connected, waiting for initial membership");
     notify_parent();
 
     notify_timer_cb(NULL);
@@ -530,7 +531,7 @@ servant_cluster(const char *diskname, int mode, const void* argp)
     enum cluster_type_e cluster_stack = get_cluster_type();
 
     crm_system_name = strdup("sbd:cluster");
-    cl_log(LOG_INFO, "Monitoring %s cluster health", name_for_cluster_type(cluster_stack));
+    cl_log(LOG_NOTICE, "Monitoring %s cluster health", name_for_cluster_type(cluster_stack));
     set_proc_title("sbd: watcher: Cluster");
 
     sbd_membership_connect();
