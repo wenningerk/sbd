@@ -126,7 +126,7 @@ rm -rf %{buildroot}
 - Fix config for Debian + configurable location of config
 - Fixes in sbd.sh - multiple SBD devices and others
 
-* Sun Mar 26 2016 <klaus.wenninger@aon.at> - 1.3.0-0.1.4ee36fa3.git
+* Sun Mar 27 2016 <klaus.wenninger@aon.at> - 1.3.0-0.1.4ee36fa3.git
 - Changes since v1.2.0 like adding the possibility to have a
   watchdog-only setup without shared-block-devices
   legitimate a bump to v1.3.0.
