@@ -15,7 +15,7 @@
 
 # Please submit bugfixes or comments via http://bugs.opensuse.org/
 #
-%global commit a180176c23e57ee904ebb08ab449cfb3d90a0383
+%global commit e102d9ed7559a14156d4b1d714b766725155ad14
 %global shortcommit %(c=%{commit}; echo ${c:0:7})
 %global github_owner beekhof
 %global buildnum 1
@@ -34,13 +34,12 @@ BuildRequires:  automake
 BuildRequires:  libuuid-devel
 BuildRequires:  glib2-devel
 BuildRequires:  libaio-devel
-BuildRequires:  corosync-devel
+BuildRequires:  corosynclib-devel
 BuildRequires:  pacemaker-libs-devel
 BuildRequires:  libtool
 BuildRequires:  libuuid-devel
 BuildRequires:  libxml2-devel
 BuildRequires:  pkgconfig
-BuildRequires:  python-devel
 BuildRequires:  make
 
 %if 0%{?rhel} > 0
@@ -114,6 +113,10 @@ rm -rf %{buildroot}
 %doc COPYING
 
 %changelog
+* Fri Jun 29 2018 <klaus.wenninger@aon.at> - 1.3.1-0.1.e102d9ed.git
+- removed unneeded python-devel build-requirement
+- changed legacy corosync-devel to corosynclib-devel
+
 * Fri Nov  3 2017 <klaus.wenninger@aon.at> - 1.3.1-0.1.a180176c.git
 - Add commands to test/query watchdogs
 - Allow 2-node-operation with a single shared-disk
