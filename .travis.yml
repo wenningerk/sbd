@@ -6,10 +6,11 @@ env:
     - DOCKER_BUILD_IMAGE=alectolytic/rpmbuilder
     - OS_ARCH=x86_64
     - PACKAGE=sbd
+    - BUILD_OS_TYPE=fedora BUILD_OS_DIST= BUILD_OS_VERSION=28
   matrix:
-    - OS_TYPE=centos OS_DIST=centos OS_VERSION=7
-    - OS_TYPE=centos OS_DIST=centos OS_VERSION=6
-    - OS_TYPE=fedora OS_DIST= OS_VERSION=28
+    - OS_TYPE=centos OS_MOCK=epel OS_DIST=centos OS_VERSION=7
+    - OS_TYPE=centos OS_MOCK=epel OS_DIST=centos OS_VERSION=6
+    - OS_TYPE=fedora OS_MOCK=fedora OS_DIST= OS_VERSION=28
 
 services:
   - docker
@@ -18,9 +19,9 @@ install: true
 
 script:
   - make -f Makefile.am spec export PACKAGE=${PACKAGE}
-  - docker pull ${DOCKER_BUILD_IMAGE}:${OS_TYPE}-${OS_VERSION}
-  - docker run -v ${PWD}:/sources -v ${PWD}:/output ${DOCKER_BUILD_IMAGE}:${OS_TYPE}-${OS_VERSION} /bin/bash -c "yum install gcc -y && build"
-  - ls ${PWD}/sbd*.${OS_ARCH}.rpm
+  - docker pull ${BUILD_OS_TYPE}:${BUILD_OS_DIST}${BUILD_OS_VERSION}
+  - docker run --privileged -v ${PWD}:/rpms ${BUILD_OS_TYPE}:${BUILD_OS_DIST}${BUILD_OS_VERSION} /bin/bash -c "dnf install -y mock dnf-utils && mock -r ${OS_MOCK}-${OS_VERSION}-${OS_ARCH} --resultdir=/rpms --no-bootstrap-chroot --old-chroot --disable-plugin=yum_cache --disable-plugin=selinux --buildsrpm --spec /rpms/${PACKAGE}.spec --sources /rpms && mock --no-clean -r ${OS_MOCK}-${OS_VERSION}-${OS_ARCH} --resultdir=/rpms --disable-plugin=yum_cache --disable-plugin=selinux --no-bootstrap-chroot --old-chroot /rpms/sbd*.src.rpm"
+  - ls ${PWD}/${PACKAGE}*.${OS_ARCH}.rpm
   - docker pull ${OS_TYPE}:${OS_DIST}${OS_VERSION}
   - docker run --privileged -v ${PWD}:/rpms -v ${PWD}/tests:/tests ${OS_TYPE}:${OS_DIST}${OS_VERSION} /bin/bash -c "yum install -y device-mapper /rpms/${PACKAGE}*.${OS_ARCH}.rpm && /tests/regressions.sh && touch /rpms/regressions.sh.SUCCESS"
   - ls ${PWD}/regressions.sh.SUCCESS
