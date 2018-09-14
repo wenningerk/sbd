@@ -23,13 +23,21 @@ SBD_PACEMAKER=yes
 #
 SBD_STARTMODE=always
 
-## Type: yesno
+## Type: yesno / integer
 ## Default: no
 #
 # Whether to delay after starting sbd on boot for "msgwait" seconds.
 # This may be necessary if your cluster nodes reboot so fast that the
 # other nodes are still waiting in the fence acknowledgement phase.
 # This is an occasional issue with virtual machines.
+#
+# This can also be enabled by being set to a specific delay value, in
+# seconds. Sometimes a longer delay than the default, "msgwait", is
+# needed, for example in the cases where it's considered to be safer to
+# wait longer than:
+# corosync token timeout + consensus timeout + pcmk_delay_max + msgwait
+#
+# Be aware that the special value "1" means "yes" rather than "1s".
 #
 # Consider that you might have to adapt the startup-timeout accordingly
 # if the default isn't sufficient. (TimeoutStartSec for systemd)
