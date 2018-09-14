@@ -251,7 +251,8 @@ watchdog_close(bool disarm)
 #define MAX_WATCHDOGS 64
 #define SYS_CLASS_WATCHDOG "/sys/class/watchdog"
 #define SYS_CHAR_DEV_DIR "/sys/dev/char"
-#define WATCHDOG_NODEDIR "/dev"
+#define WATCHDOG_NODEDIR "/dev/"
+#define WATCHDOG_NODEDIR_LEN 5
 
 struct watchdog_list_item {
 	dev_t dev;
@@ -273,7 +274,7 @@ watchdog_populate_list(void)
 	struct dirent *entry;
 	char entry_name[280];
 	DIR *dp;
-	char buf[256] = "";
+	char buf[280] = "";
 
 	if (watchdog_list != NULL) {
 		return;
@@ -313,7 +314,38 @@ watchdog_populate_list(void)
 				struct stat statbuf;
 
 				snprintf(entry_name, sizeof(entry_name),
-						WATCHDOG_NODEDIR "/%s", entry->d_name);
+						WATCHDOG_NODEDIR "%s", entry->d_name);
+				if (entry->d_type == DT_LNK) {
+					int len;
+
+					/* !realpath(entry_name, buf) unfortunately does a stat on
+					 * target so we can't really use it to check if links stay
+					 * within /dev without triggering e.g. AVC-logs (with
+					 * SELinux policy that just allows stat within /dev).
+					 * Without canonicalization that doesn't actually touch the
+					 * filesystem easily available introduce some limitations
+					 * for simplicity:
+					 * - just simple path without '..'
+					 * - just one level of symlinks (avoid e.g. loop-checking)
+					 */
+					len = readlink(entry_name, buf, sizeof(buf) - 1);
+					if ((len < 1) ||
+					    (len > sizeof(buf) - WATCHDOG_NODEDIR_LEN - 1)) {
+						continue;
+					}
+					buf[len] = '\0';
+					if (buf[0] != '/') {
+						memmove(&buf[WATCHDOG_NODEDIR_LEN], buf, len+1);
+						memcpy(buf, WATCHDOG_NODEDIR, WATCHDOG_NODEDIR_LEN);
+						len += WATCHDOG_NODEDIR_LEN;
+					}
+					if (strstr(buf, "/../") ||
+					    strncmp(WATCHDOG_NODEDIR, buf, WATCHDOG_NODEDIR_LEN) ||
+					    lstat(buf, &statbuf) ||
+					    !S_ISCHR(statbuf.st_mode)) {
+						continue;
+					}
+				}
 				if(!stat(entry_name, &statbuf) && S_ISCHR(statbuf.st_mode)) {
 					int i;
 
@@ -322,6 +354,7 @@ watchdog_populate_list(void)
 							int wdfd = watchdog_init_fd(entry_name, -1);
 							struct watchdog_list_item *wdg =
 									calloc(1, sizeof(struct watchdog_list_item));
+							int len;
 
 							wdg->dev = watchdogs[i];
 							wdg->dev_node = strdup(entry_name);
@@ -343,7 +376,8 @@ watchdog_populate_list(void)
 							snprintf(entry_name, sizeof(entry_name),
 								SYS_CHAR_DEV_DIR "/%d:%d/device/driver",
 								major(watchdogs[i]), minor(watchdogs[i]));
-							if (readlink(entry_name, buf, sizeof(buf)) > 0) {
+							if ((len = readlink(entry_name, buf, sizeof(buf) - 1)) > 0) {
+								buf[len] = '\0';
 								wdg->dev_driver = strdup(basename(buf));
 							} else if ((wdg->dev_ident) &&
 										(strcmp(wdg->dev_ident,
