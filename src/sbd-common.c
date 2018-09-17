@@ -376,12 +376,13 @@ watchdog_populate_list(void)
 							snprintf(entry_name, sizeof(entry_name),
 								SYS_CHAR_DEV_DIR "/%d:%d/device/driver",
 								major(watchdogs[i]), minor(watchdogs[i]));
-							if ((len = readlink(entry_name, buf, sizeof(buf) - 1)) > 0) {
+							len = readlink(entry_name, buf, sizeof(buf) - 1);
+							if (len > 0) {
 								buf[len] = '\0';
 								wdg->dev_driver = strdup(basename(buf));
 							} else if ((wdg->dev_ident) &&
-										(strcmp(wdg->dev_ident,
-												"Software Watchdog") == 0)) {
+							           (strcmp(wdg->dev_ident,
+							                   "Software Watchdog") == 0)) {
 								wdg->dev_driver = strdup("softdog");
 							}
 							break;
