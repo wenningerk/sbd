@@ -831,7 +831,8 @@ int main(int argc, char **argv, char **envp)
 	int P_count = 0;
         int qb_facility;
         const char *value = NULL;
-        int start_delay = 0;
+        bool delay_start = false;
+        long delay = 0;
 
 	if ((cmdname = strrchr(argv[0], '/')) == NULL) {
 		cmdname = argv[0];
@@ -913,9 +914,19 @@ int main(int argc, char **argv, char **envp)
 
         value = getenv("SBD_DELAY_START");
         if(value) {
-            start_delay = crm_is_true(value);
+            delay_start = crm_is_true(value);
+
+            if (!delay_start) {
+                delay = crm_get_msec(value) / 1000;
+                if (delay > 0) {
+                    delay_start = true;
+                }
+            }
         }
-        cl_log(LOG_DEBUG, "Start delay: %d (%s)", (int)start_delay, value?value:"default");
+        cl_log(LOG_DEBUG, "Delay start: %s%s%s",
+               delay_start? "yes (" : "no",
+               delay_start? (delay > 0 ? value: "msgwait") : "",
+               delay_start? ")" : "");
 
 	while ((c = getopt(argc, argv, "czC:DPRTWZhvw:d:n:p:1:2:3:4:5:t:I:F:S:s:")) != -1) {
 		switch (c) {
@@ -1115,10 +1126,12 @@ int main(int argc, char **argv, char **envp)
                     open_any_device(servants_leader);
                 }
 
-                if(start_delay) {
-                    unsigned long delay = get_first_msgwait(servants_leader);
+                if (delay_start) {
+                    if (delay <= 0) {
+                        delay = get_first_msgwait(servants_leader);
+                    }
 
-                    sleep(delay);
+                    sleep((unsigned long) delay);
                 }
 
 	} else {
