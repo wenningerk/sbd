@@ -262,6 +262,12 @@ struct watchdog_list_item {
 	struct watchdog_list_item *next;
 };
 
+struct link_list_item {
+	char *dev_node;
+	char *link_name;
+	struct link_list_item *next;
+};
+
 static struct watchdog_list_item *watchdog_list = NULL;
 static int watchdog_list_items = 0;
 
@@ -275,6 +281,7 @@ watchdog_populate_list(void)
 	char entry_name[280];
 	DIR *dp;
 	char buf[280] = "";
+	struct link_list_item *link_list = NULL;
 
 	if (watchdog_list != NULL) {
 		return;
@@ -288,7 +295,7 @@ watchdog_populate_list(void)
 				FILE *file;
 
 				snprintf(entry_name, sizeof(entry_name),
-						SYS_CLASS_WATCHDOG "/%s/dev", entry->d_name);
+				         SYS_CLASS_WATCHDOG "/%s/dev", entry->d_name);
 				file = fopen(entry_name, "r");
 				if (file) {
 					int major, minor;
@@ -309,43 +316,59 @@ watchdog_populate_list(void)
 	/* search for watchdog nodes in /dev */
 	dp = opendir(WATCHDOG_NODEDIR);
 	if (dp) {
+		/* first go for links and memorize them */
 		while ((entry = readdir(dp))) {
-			if ((entry->d_type == DT_CHR) || (entry->d_type == DT_LNK)) {
+			if (entry->d_type == DT_LNK) {
+				int len;
+
+				snprintf(entry_name, sizeof(entry_name),
+				         WATCHDOG_NODEDIR "%s", entry->d_name);
+
+				/* !realpath(entry_name, buf) unfortunately does a stat on
+				 * target so we can't really use it to check if links stay
+				 * within /dev without triggering e.g. AVC-logs (with
+				 * SELinux policy that just allows stat within /dev).
+				 * Without canonicalization that doesn't actually touch the
+				 * filesystem easily available introduce some limitations
+				 * for simplicity:
+				 * - just simple path without '..'
+				 * - just one level of symlinks (avoid e.g. loop-checking)
+				 */
+				len = readlink(entry_name, buf, sizeof(buf) - 1);
+				if ((len < 1) ||
+				    (len > sizeof(buf) - WATCHDOG_NODEDIR_LEN - 1)) {
+					continue;
+				}
+				buf[len] = '\0';
+				if (buf[0] != '/') {
+					memmove(&buf[WATCHDOG_NODEDIR_LEN], buf, len+1);
+					memcpy(buf, WATCHDOG_NODEDIR, WATCHDOG_NODEDIR_LEN);
+					len += WATCHDOG_NODEDIR_LEN;
+				}
+				if (strstr(buf, "/../") ||
+				    strncmp(WATCHDOG_NODEDIR, buf, WATCHDOG_NODEDIR_LEN)) {
+					continue;
+				} else {
+					/* just memorize to avoid statting the target - SELinux */
+					struct link_list_item *lli =
+						calloc(1, sizeof(struct link_list_item));
+
+					lli->dev_node = strdup(buf);
+					lli->link_name = strdup(entry_name);
+					lli->next = link_list;
+					link_list = lli;
+				}
+			}
+		}
+
+		rewinddir(dp);
+
+		while ((entry = readdir(dp))) {
+			if (entry->d_type == DT_CHR) {
 				struct stat statbuf;
 
 				snprintf(entry_name, sizeof(entry_name),
-						WATCHDOG_NODEDIR "%s", entry->d_name);
-				if (entry->d_type == DT_LNK) {
-					int len;
-
-					/* !realpath(entry_name, buf) unfortunately does a stat on
-					 * target so we can't really use it to check if links stay
-					 * within /dev without triggering e.g. AVC-logs (with
-					 * SELinux policy that just allows stat within /dev).
-					 * Without canonicalization that doesn't actually touch the
-					 * filesystem easily available introduce some limitations
-					 * for simplicity:
-					 * - just simple path without '..'
-					 * - just one level of symlinks (avoid e.g. loop-checking)
-					 */
-					len = readlink(entry_name, buf, sizeof(buf) - 1);
-					if ((len < 1) ||
-					    (len > sizeof(buf) - WATCHDOG_NODEDIR_LEN - 1)) {
-						continue;
-					}
-					buf[len] = '\0';
-					if (buf[0] != '/') {
-						memmove(&buf[WATCHDOG_NODEDIR_LEN], buf, len+1);
-						memcpy(buf, WATCHDOG_NODEDIR, WATCHDOG_NODEDIR_LEN);
-						len += WATCHDOG_NODEDIR_LEN;
-					}
-					if (strstr(buf, "/../") ||
-					    strncmp(WATCHDOG_NODEDIR, buf, WATCHDOG_NODEDIR_LEN) ||
-					    lstat(buf, &statbuf) ||
-					    !S_ISCHR(statbuf.st_mode)) {
-						continue;
-					}
-				}
+				         WATCHDOG_NODEDIR "%s", entry->d_name);
 				if(!stat(entry_name, &statbuf) && S_ISCHR(statbuf.st_mode)) {
 					int i;
 
@@ -353,8 +376,9 @@ watchdog_populate_list(void)
 						if (statbuf.st_rdev == watchdogs[i]) {
 							int wdfd = watchdog_init_fd(entry_name, -1);
 							struct watchdog_list_item *wdg =
-									calloc(1, sizeof(struct watchdog_list_item));
+								calloc(1, sizeof(struct watchdog_list_item));
 							int len;
+							struct link_list_item *tmp_list = NULL;
 
 							wdg->dev = watchdogs[i];
 							wdg->dev_node = strdup(entry_name);
@@ -374,8 +398,8 @@ watchdog_populate_list(void)
 							}
 
 							snprintf(entry_name, sizeof(entry_name),
-								SYS_CHAR_DEV_DIR "/%d:%d/device/driver",
-								major(watchdogs[i]), minor(watchdogs[i]));
+							         SYS_CHAR_DEV_DIR "/%d:%d/device/driver",
+							         major(watchdogs[i]), minor(watchdogs[i]));
 							len = readlink(entry_name, buf, sizeof(buf) - 1);
 							if (len > 0) {
 								buf[len] = '\0';
@@ -385,13 +409,48 @@ watchdog_populate_list(void)
 							                   "Software Watchdog") == 0)) {
 								wdg->dev_driver = strdup("softdog");
 							}
+
+							/* create dupes if we have memorized links
+							 * to this node
+							 */
+							for (tmp_list = link_list; tmp_list;
+							     tmp_list = tmp_list->next) {
+								if (!strcmp(tmp_list->dev_node,
+								            wdg->dev_node)) {
+									struct watchdog_list_item *dupe_wdg =
+										calloc(1, sizeof(struct watchdog_list_item));
+
+									/* as long as we never purge watchdog_list
+									 * there is no need to dupe strings
+									 */
+									*dupe_wdg = *wdg;
+									dupe_wdg->dev_node = strdup(tmp_list->link_name);
+									dupe_wdg->next = watchdog_list;
+									watchdog_list = dupe_wdg;
+									watchdog_list_items++;
+								}
+								/* for performance reasons we could remove
+								 * the link_list entry
+								 */
+							}
 							break;
 						}
 					}
 				}
 			}
 		}
+
 		closedir(dp);
+	}
+
+	/* cleanup link list */
+	while (link_list) {
+		struct link_list_item *tmp_list = link_list;
+
+		link_list = link_list->next;
+		free(tmp_list->dev_node);
+		free(tmp_list->link_name);
+		free(tmp_list);
 	}
 }
 
