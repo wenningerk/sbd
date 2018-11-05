@@ -31,6 +31,10 @@
 #  include <sys/mman.h>
 #endif
 
+#include <vmGuestAppMonitorLib.h>
+#define VMWARE_WATCHDOG_FD (FD_SETSIZE + 1)
+#define VMWARE_WATCHDOG_TIMEOUT -1
+
 /* Tunable defaults: */
 #if  defined(__s390__) || defined(__s390x__)
 unsigned long	timeout_watchdog 	= 15;
@@ -119,6 +123,17 @@ usage(void)
 static int
 watchdog_init_interval_fd(int wdfd, int timeout)
 {
+	if (wdfd == VMWARE_WATCHDOG_FD) {
+		if ((timeout != VMWARE_WATCHDOG_TIMEOUT) && (VMWARE_WATCHDOG_TIMEOUT > 0)) {
+			cl_perror("Only timeout value supported by VMware Application Monitoring is %d seconds",
+					 VMWARE_WATCHDOG_TIMEOUT);
+			cl_log(LOG_CRIT, "Please validate your watchdog configuration!");
+			cl_log(LOG_CRIT, "Choose a different watchdog driver or specify -T to skip this if you are completely sure.");
+			return -1;
+		}
+		return 0;
+	}
+
 	if (ioctl(wdfd, WDIOC_SETTIMEOUT, &timeout) < 0) {
 		cl_perror( "WDIOC_SETTIMEOUT"
 				": Failed to set watchdog timer to %u seconds.",
@@ -152,6 +167,25 @@ watchdog_init_interval(void)
 static int
 watchdog_tickle_fd(int wdfd, char *wddev)
 {
+	if (wdfd == VMWARE_WATCHDOG_FD) {
+		int error;
+
+		error = VMGuestAppMonitor_MarkActive();
+		if (error != VMGUESTAPPMONITORLIB_ERROR_SUCCESS) {
+			switch (error) {
+				case VMGUESTAPPMONITORLIB_ERROR_NOT_ENABLED:
+					if (VMGuestAppMonitor_Enable() != VMGUESTAPPMONITORLIB_ERROR_SUCCESS) {
+						cl_perror("VMware Application Monitoring not enabled - failed to reenable");
+					}
+					break;
+				default:
+					cl_perror("Failed to tickle VMware Application Monitoring");
+			}
+			return -1;
+		}
+		return 0;
+	}
+
 	if (write(wdfd, "", 1) != 1) {
 			cl_perror("Watchdog write failure: %s!", wddev);
 			return -1;
@@ -173,6 +207,33 @@ watchdog_init_fd(char *wddev, int timeout)
 {
 	int wdfd;
 
+	if (!strcmp(wddev, "vmware")) {
+		int error;
+
+		if ((timeout >= 0) && (VMWARE_WATCHDOG_TIMEOUT > 0) && (timeout != VMWARE_WATCHDOG_TIMEOUT)) {
+			cl_perror("Only timeout value supported by VMware Application Monitoring is %d seconds",
+					 VMWARE_WATCHDOG_TIMEOUT);
+			return -1;
+		}
+		error = VMGuestAppMonitor_Enable();
+		if (error != VMGUESTAPPMONITORLIB_ERROR_SUCCESS) {
+			switch (error) {
+				case VMGUESTAPPMONITORLIB_ERROR_NOT_RUNNING_IN_VM:
+					cl_perror("Not running inside VMware VM - Application Monitoring failed");
+					break;
+				case VMGUESTAPPMONITORLIB_ERROR_NOT_ENABLED:
+					cl_perror("VMware Application Monitoring not enabled");
+					break;
+				case VMGUESTAPPMONITORLIB_ERROR_NOT_SUPPORTED:
+					cl_perror("VMware Application Monitoring not supported");
+					break;
+				default:
+					cl_perror("Failed to enable VMware Application Monitoring");
+			}
+			return -1;
+		}
+		return VMWARE_WATCHDOG_FD;
+	}
 	wdfd = open(wddev, O_WRONLY);
 	if (wdfd >= 0) {
 		if (((timeout >= 0) && (watchdog_init_interval_fd(wdfd, timeout) < 0))
@@ -213,6 +274,34 @@ watchdog_init(void)
 static void
 watchdog_close_fd(int wdfd, char *wddev, bool disarm)
 {
+	if (wdfd == VMWARE_WATCHDOG_FD) {
+		int error;
+
+		if (disarm) {
+			error = VMGuestAppMonitor_Disable();
+			if (error != VMGUESTAPPMONITORLIB_ERROR_SUCCESS) {
+				switch (error) {
+					case VMGUESTAPPMONITORLIB_ERROR_NOT_RUNNING_IN_VM:
+						cl_perror("Not running inside VMware VM - no need to disarm Application Monitoring");
+						break;
+					case VMGUESTAPPMONITORLIB_ERROR_NOT_ENABLED:
+						cl_perror("VMware Application Monitoring not enabled - no need to disarm");
+						break;
+					case VMGUESTAPPMONITORLIB_ERROR_NOT_SUPPORTED:
+						cl_perror("VMware Application Monitoring not supported - no need to disarm");
+						break;
+					default:
+						cl_perror("Failed to disarm VMware Application Monitoring");
+				}
+			}
+		}
+		/* todo: timeout for VMware Application Monitoring is sluggish 30s
+		 *       but we could request an immediate reboot here
+		 *       VMGuestAppMonitor_PostAppState("needReset");
+		 */
+		return;
+	}
+
     if (disarm) {
         int r;
         int flags = WDIOS_DISABLECARD;;
@@ -282,6 +371,7 @@ watchdog_populate_list(void)
 	DIR *dp;
 	char buf[280] = "";
 	struct link_list_item *link_list = NULL;
+	char *vmware_appstatus = NULL;
 
 	if (watchdog_list != NULL) {
 		return;
@@ -443,6 +533,21 @@ watchdog_populate_list(void)
 		closedir(dp);
 	}
 
+	vmware_appstatus = VMGuestAppMonitor_GetAppStatus();
+	if (vmware_appstatus) {
+		struct watchdog_list_item *wdg =
+			calloc(1, sizeof(struct watchdog_list_item));
+
+		wdg->dev = 0;
+		wdg->dev_node = strdup("vmware");
+		sprintf(buf, "VMware Application Monitoring (%s)", vmware_appstatus);
+		wdg->dev_ident = strdup(buf);
+		wdg->next = watchdog_list;
+		watchdog_list = wdg;
+		watchdog_list_items++;
+		VMGuestAppMonitor_Free(vmware_appstatus);
+	}
+
 	/* cleanup link list */
 	while (link_list) {
 		struct link_list_item *tmp_list = link_list;
@@ -524,7 +629,7 @@ int watchdog_test(void)
 		printf("System expected to reset any moment ...\n");
 		sleep(1);
 	}
-	for (i=5; i>0; i--) {
+	for (i=(watchdogfd == VMWARE_WATCHDOG_FD)?60:5; i>0; i--) {
 		printf("System should have reset ...\n");
 		sleep(1);
 	}

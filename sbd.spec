@@ -41,6 +41,7 @@ BuildRequires:  libuuid-devel
 BuildRequires:  libxml2-devel
 BuildRequires:  pkgconfig
 BuildRequires:  make
+BuildRequires:  open-vm-tools-appmonitor-devel
 
 %if 0%{?rhel} > 0
 ExclusiveArch: i686 x86_64 s390x

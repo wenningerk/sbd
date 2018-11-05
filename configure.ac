@@ -56,6 +56,9 @@ fi
 PKG_CHECK_MODULES(libxml, [libxml-2.0])
 CPPFLAGS="$CPPFLAGS $libxml_CFLAGS $libqb_CFLAGS"
 
+PKG_CHECK_MODULES(appmonitor, [appmonitor])
+CPPFLAGS="$CPPFLAGS $appmonitor_CFLAGS"
+
 dnl     checks for libraries
 AC_CHECK_LIB(aio, io_setup, , missing="yes")
 AC_CHECK_LIB(qb, qb_ipcs_connection_auth_set, , missing="yes")
