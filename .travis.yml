@@ -1,16 +1,31 @@
 sudo: required
 language: c
 
+os:
+    - linux
+    - linux-ppc64le
+
 env:
-  global:
-    - DOCKER_BUILD_IMAGE=alectolytic/rpmbuilder
-    - OS_ARCH=x86_64
-    - PACKAGE=sbd
-    - BUILD_OS_TYPE=fedora BUILD_OS_DIST= BUILD_OS_VERSION=28
-  matrix:
-    - OS_TYPE=centos OS_MOCK=epel OS_DIST=centos OS_VERSION=7
-    - OS_TYPE=centos OS_MOCK=epel OS_DIST=centos OS_VERSION=6
-    - OS_TYPE=fedora OS_MOCK=fedora OS_DIST= OS_VERSION=28
+    global:
+        - PACKAGE=sbd
+        - BUILD_OS_TYPE=fedora BUILD_OS_DIST= BUILD_OS_VERSION=29
+
+matrix:
+    exclude:
+        - os:  linux
+        - os:  linux-ppc64le
+
+    include:
+        - os:  linux
+          env: OS_ARCH=x86_64 OS_TYPE=centos OS_MOCK=epel OS_DIST=centos OS_VERSION=7
+        - os:  linux
+          env: OS_ARCH=x86_64 OS_TYPE=centos OS_MOCK=epel OS_DIST=centos OS_VERSION=6
+        - os:  linux
+          env: OS_ARCH=x86_64 OS_TYPE=fedora OS_MOCK=fedora OS_DIST= OS_VERSION=28
+        - os:  linux
+          env: OS_ARCH=x86_64 OS_TYPE=fedora OS_MOCK=fedora OS_DIST= OS_VERSION=29
+        - os:  linux-ppc64le
+          env: OS_ARCH=ppc64le OS_TYPE=fedora OS_MOCK=fedora OS_DIST= OS_VERSION=29
 
 services:
   - docker
