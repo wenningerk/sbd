@@ -58,6 +58,31 @@
 
 #include "sbd.h"
 
+#ifndef HAVE_PE_NEW_WORKING_SET
+
+#define pe_reset_working_set(data_set) cleanup_calculations(data_set)
+
+static pe_working_set_t *
+pe_new_working_set()
+{
+	pe_working_set_t *data_set = calloc(1, sizeof(pe_working_set_t));
+	if (data_set != NULL) {
+		set_working_set_defaults(data_set);
+	}
+	return data_set;
+}
+
+static void
+pe_free_working_set(pe_working_set_t *data_set)
+{
+	if (data_set != NULL) {
+		pe_reset_working_set(data_set);
+		free(data_set);
+	}
+}
+
+#endif
+
 extern int disk_count;
 
 static void clean_up(int rc);
@@ -74,6 +99,7 @@ static int cib_connected = 0;
 
 static cib_t *cib = NULL;
 static xmlNode *current_cib = NULL;
+static pe_working_set_t *data_set = NULL;
 
 static long last_refresh = 0;
 
@@ -361,7 +387,6 @@ static gboolean
 mon_refresh_state(gpointer user_data)
 {
     xmlNode *cib_copy = NULL;
-    pe_working_set_t data_set;
 
     if(current_cib == NULL) {
         return FALSE;
@@ -382,14 +407,13 @@ mon_refresh_state(gpointer user_data)
 
     } else {
         last_refresh = time(NULL);
-        set_working_set_defaults(&data_set);
-        data_set.input = cib_copy;
-        data_set.flags |= pe_flag_have_stonith_resource;
-        cluster_status(&data_set);
+        data_set->input = cib_copy;
+        data_set->flags |= pe_flag_have_stonith_resource;
+        cluster_status(data_set);
 
-        compute_status(&data_set);
+        compute_status(data_set);
 
-        cleanup_calculations(&data_set);
+        pe_reset_working_set(data_set);
     }
 
     return FALSE;
@@ -398,6 +422,21 @@ mon_refresh_state(gpointer user_data)
 static void
 clean_up(int rc)
 {
+	if (timer_id_reconnect > 0) {
+		g_source_remove(timer_id_reconnect);
+		timer_id_reconnect = 0;
+	}
+
+	if (timer_id_notify > 0) {
+		g_source_remove(timer_id_notify);
+		timer_id_notify = 0;
+	}
+
+	if (data_set != NULL) {
+		pe_free_working_set(data_set);
+		data_set = NULL;
+	}
+
 	if (cib != NULL) {
 		cib->cmds->signoff(cib);
 		cib_delete(cib);
@@ -424,6 +463,14 @@ servant_pcmk(const char *diskname, int mode, const void* argp)
             /* We don't want any noisy crm messages */
             set_crm_log_level(LOG_CRIT);
         }
+
+
+	if (data_set == NULL) {
+		data_set = pe_new_working_set();
+	}
+	if (data_set == NULL) {
+		return -1;
+	}
 
 	if (current_cib == NULL) {
 		cib = cib_new();
