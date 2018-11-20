@@ -76,6 +76,9 @@ dnl pacemaker-2.0 removed support for corosync 1 cluster layer
 AC_CHECK_DECLS([pcmk_cluster_classic_ais, pcmk_cluster_cman],,,
 	       [#include <pacemaker/crm/cluster.h>])
 
+dnl check for new pe-API
+AC_CHECK_FUNCS(pe_new_working_set)
+
 if test "$missing" = "yes"; then
    AC_MSG_ERROR([Missing required libraries or functions.])
 fi
