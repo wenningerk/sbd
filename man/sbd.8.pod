@@ -333,6 +333,23 @@ prevent a successful crashdump from ever being written.
 
 Defaults to 240 seconds. Set to zero to disable.
 
+=item B<-r> I<N>
+
+Actions to be executed when the watchers don't timely report to the sbd
+master process or one of the watchers detects that the master process
+has died.
+
+Set timeout-action to comma-separated combination of
+noflush|flush plus reboot|crashdump|off.
+If just one of both is given the other stays at the default.
+
+This doesn't affect actions like off, crashdump, reboot explicitly
+triggered via message slots.
+And it does as well not configure the action a watchdog would
+trigger should it run off (there is no generic interface).
+
+Defaults to flush,reboot.
+
 =back
 
 =head2 allocate
@@ -552,6 +569,8 @@ options to pass to the daemon:
 
 C<sbd> will fail to start if no C<SBD_DEVICE> is specified. See the
 installed template for more options that can be configured here.
+In general configuration done via parameters takes precedence over
+the configuration from the configuration file.
 
 =head2 Testing the sbd installation
 

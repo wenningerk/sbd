@@ -98,6 +98,8 @@ usage(void)
 "			(default is 1, set to 0 to disable)\n"
 "-P		Check Pacemaker quorum and node health (optional, watch only)\n"
 "-Z		Enable trace mode. WARNING: UNSAFE FOR PRODUCTION!\n"
+"-r		Set timeout-action to comma-separated combination of\n"
+"		noflush|flush plus reboot|crashdump|off (default is flush,reboot)\n"
 "Commands:\n"
 #if SUPPORT_SHARED_DISK
 "create		initialize N slots on <dev> - OVERWRITES DEVICE!\n"
@@ -769,7 +771,7 @@ sysrq_trigger(char t)
 
 
 static void
-do_exit(char kind) 
+do_exit(char kind, bool do_flush)
 {
     /* TODO: Turn debug_mode into a bit field? Delay + kdump for example */
     const char *reason = NULL;
@@ -814,7 +816,9 @@ do_exit(char kind)
     }
 
     cl_log(LOG_EMERG, "Rebooting system: %s", reason);
-    sync();
+    if (do_flush) {
+        sync();
+    }
 
     if(kind == 'c') {
         watchdog_close(true);
@@ -834,19 +838,25 @@ do_exit(char kind)
 void
 do_crashdump(void)
 {
-    do_exit('c');
+    do_exit('c', true);
 }
 
 void
 do_reset(void)
 {
-    do_exit('b');
+    do_exit('b', true);
 }
 
 void
 do_off(void)
 {
-    do_exit('o');
+    do_exit('o', true);
+}
+
+void
+do_timeout_action(void)
+{
+	do_exit(timeout_sysrq_char, do_flush);
 }
 
 /*
@@ -980,7 +990,7 @@ notify_parent(void)
         /* Our parent died unexpectedly. Triggering
          * self-fence. */
         cl_log(LOG_WARNING, "Our parent is dead.");
-        do_reset();
+        do_timeout_action();
     }
 
     switch (servant_health) {
