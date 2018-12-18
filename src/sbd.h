@@ -130,6 +130,7 @@ void sysrq_trigger(char t);
 void do_crashdump(void);
 void do_reset(void);
 void do_off(void);
+void do_timeout_action(void);
 pid_t make_daemon(void);
 void maximize_priority(void);
 void sbd_get_uname(void);
@@ -153,6 +154,8 @@ extern int  debug_mode;
 extern char *watchdogdev;
 extern bool watchdogdev_is_default;
 extern char*  local_uname;
+extern bool do_flush;
+extern char timeout_sysrq_char;
 
 /* Global, non-tunable variables: */
 extern int  sector_size;

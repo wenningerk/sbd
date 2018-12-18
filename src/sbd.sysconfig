@@ -71,6 +71,24 @@ SBD_WATCHDOG_DEV=/dev/watchdog
 SBD_WATCHDOG_TIMEOUT=5
 
 ## Type: string
+## Default: "flush,reboot"
+#
+# Actions to be executed when the watchers don't timely report to the sbd
+# master process or one of the watchers detects that the master process
+# has died.
+#
+# Set timeout-action to comma-separated combination of
+# noflush|flush plus reboot|crashdump|off.
+# If just one of both is given the other stays at the default.
+#
+# This doesn't affect actions like off, crashdump, reboot explicitly
+# triggered via message slots.
+# And it does as well not configure the action a watchdog would
+# trigger should it run off (there is no generic interface).
+#
+SBD_TIMEOUT_ACTION=flush,reboot
+
+## Type: string
 ## Default: ""
 #
 # Additional options for starting sbd

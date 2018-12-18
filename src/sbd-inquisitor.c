@@ -31,6 +31,8 @@ int	servant_restart_interval = 5;
 int	servant_restart_count = 1;
 int	start_mode = 0;
 char*	pidfile = NULL;
+bool do_flush = true;
+char timeout_sysrq_char = 'b';
 
 int parse_device_line(const char *line);
 
@@ -655,7 +657,7 @@ void inquisitor_child(void)
 				/* At level 2 or above, we do nothing, but expect
 				 * things to eventually return to
 				 * normal. */
-				do_reset();
+				do_timeout_action();
 			} else {
 				cl_log(LOG_ERR, "SBD: DEBUG MODE: Would have fenced due to timeout!");
 			}
@@ -668,7 +670,7 @@ void inquisitor_child(void)
 
                         if (debug_mode && watchdog_use) {
                             /* In debug mode, trigger a reset before the watchdog can panic the machine */
-                            do_reset();
+                            do_timeout_action();
                         }
 		}
 
@@ -833,6 +835,7 @@ int main(int argc, char **argv, char **envp)
         const char *value = NULL;
         bool delay_start = false;
         long delay = 0;
+        char *timeout_action = NULL;
 
 	if ((cmdname = strrchr(argv[0], '/')) == NULL) {
 		cmdname = argv[0];
@@ -928,7 +931,12 @@ int main(int argc, char **argv, char **envp)
                delay_start? (delay > 0 ? value: "msgwait") : "",
                delay_start? ")" : "");
 
-	while ((c = getopt(argc, argv, "czC:DPRTWZhvw:d:n:p:1:2:3:4:5:t:I:F:S:s:")) != -1) {
+        value = getenv("SBD_TIMEOUT_ACTION");
+        if(value) {
+            timeout_action = strdup(value);
+        }
+
+	while ((c = getopt(argc, argv, "czC:DPRTWZhvw:d:n:p:1:2:3:4:5:t:I:F:S:s:r:")) != -1) {
 		switch (c) {
 		case 'D':
 			break;
@@ -1043,6 +1051,12 @@ int main(int argc, char **argv, char **envp)
 			cl_log(LOG_INFO, "Servant restart count set to %d",
 					(int)servant_restart_count);
 			break;
+		case 'r':
+			if (timeout_action) {
+				free(timeout_action);
+			}
+			timeout_action = strdup(optarg);
+			break;
 		case 'h':
 			usage();
 			return (0);
@@ -1100,6 +1114,39 @@ int main(int argc, char **argv, char **envp)
 		exit_status = -1;
 		goto out;
 	}
+
+	if (timeout_action) {
+		char *p[2];
+		int i;
+		char c;
+		int nrflags = sscanf(timeout_action, "%m[a-z],%m[a-z]%c", &p[0], &p[1], &c);
+		bool parse_error = (nrflags < 1) || (nrflags > 2);
+
+		for (i = 0; (i < nrflags) && (i < 2); i++) {
+			if (!strcmp(p[i], "reboot")) {
+				timeout_sysrq_char = 'b';
+			} else if (!strcmp(p[i], "crashdump")) {
+				timeout_sysrq_char = 'c';
+			} else if (!strcmp(p[i], "off")) {
+				timeout_sysrq_char = 'o';
+			} else if (!strcmp(p[i], "flush")) {
+				do_flush = true;
+			} else if (!strcmp(p[i], "noflush")) {
+				do_flush = false;
+			} else {
+				parse_error = true;
+			}
+			free(p[i]);
+		}
+		if (parse_error) {
+			fprintf(stderr, "Failed to parse timeout-action \"%s\".\n",
+				timeout_action);
+			exit_status = -1;
+			goto out;
+		}
+	}
+	cl_log(LOG_NOTICE, "%s flush + writing \'%c\' to sysrq on timeout",
+		do_flush?"Doing":"Skipping", timeout_sysrq_char);
 
 #if SUPPORT_SHARED_DISK
 	if (strcmp(argv[optind], "create") == 0) {
