@@ -476,7 +476,7 @@ storage (with internal redundancy) anyway; the SBD device does not
 introduce an additional single point of failure then.
 
 If the SBD device is not accessible, the daemon will fail to start and
-inhibit openais startup.
+inhibit startup of cluster services.
 
 =item Two devices
 
