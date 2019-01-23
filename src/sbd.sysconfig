@@ -68,6 +68,9 @@ SBD_WATCHDOG_DEV=/dev/watchdog
 # If your sbd device(s) reside on a multipath setup or iSCSI, this
 # should be the time required to detect a path failure.
 #
+# Be aware that watchdog timeout set in the on-disk metadata takes
+# precedence.
+#
 SBD_WATCHDOG_TIMEOUT=5
 
 ## Type: string
