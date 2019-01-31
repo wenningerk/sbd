@@ -1031,7 +1031,7 @@ static int servant_check_timeout_inconsistent(struct sector_header_s *hdr)
 	return 0;
 }
 
-int servant(const char *diskname, int mode, const void* argp)
+int servant_md(const char *diskname, int mode, const void* argp)
 {
 	struct sector_mbox_s *s_mbox = NULL;
 	struct sector_node_s *s_node = NULL;
@@ -1045,11 +1045,6 @@ int servant(const char *diskname, int mode, const void* argp)
 	pid_t ppid;
 	char uuid[37];
 	const struct servants_list_item *s = argp;
-
-	if (!diskname) {
-		cl_log(LOG_ERR, "Empty disk name %s.", diskname);
-		return -1;
-	}
 
 	cl_log(LOG_INFO, "Servant starting for device %s", diskname);
 
