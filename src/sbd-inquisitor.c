@@ -42,19 +42,36 @@ void recruit_servant(const char *devname, pid_t pid)
 	struct servants_list_item *newbie;
 
 	if (lookup_servant_by_dev(devname)) {
-		cl_log(LOG_DEBUG, "Servant %s already exists", devname);
-		return;
+	    cl_log(LOG_DEBUG, "Servant %s already exists", devname);
+	    return;
 	}
 
 	newbie = malloc(sizeof(*newbie));
-	if (!newbie) {
-		fprintf(stderr, "malloc failed in recruit_servant.\n");
-		exit(1);
+	if (newbie) {
+	    memset(newbie, 0, sizeof(*newbie));
+	    newbie->devname = strdup(devname);
+	    newbie->pid = pid;
+	    newbie->first_start = 1;
 	}
-	memset(newbie, 0, sizeof(*newbie));
-	newbie->devname = strdup(devname);
-	newbie->pid = pid;
-	newbie->first_start = 1;
+	if (!newbie || !newbie->devname) {
+	    fprintf(stderr, "heap allocation failed in recruit_servant.\n");
+	    exit(1);
+	}
+
+	/* some sanity-check on our newbie */
+	if (sbd_is_disk(newbie)) {
+	    cl_log(LOG_INFO, "Monitoring %s", devname);
+	    disk_count++;
+	} else if (sbd_is_pcmk(newbie) || sbd_is_cluster(newbie)) {
+	    /* alive just after pcmk and cluster servants have shown up */
+	    newbie->outdated = 1;
+	} else {
+	    /* toss our newbie */
+	    cl_log(LOG_ERR, "Refusing to recruit unrecognized servant %s", devname);
+	    free((void *) newbie->devname);
+	    free(newbie);
+	    return;
+	}
 
 	if (!s) {
 		servants_leader = newbie;
@@ -65,12 +82,6 @@ void recruit_servant(const char *devname, pid_t pid)
 	}
 
 	servant_count++;
-        if(sbd_is_disk(newbie)) {
-            cl_log(LOG_INFO, "Monitoring %s", devname);
-            disk_count++;
-        } else {
-            newbie->outdated = 1;
-        }
 }
 
 int assign_servant(const char* devname, functionp_t functionp, int mode, const void* argp)
@@ -148,7 +159,7 @@ void servant_start(struct servants_list_item *s)
 	if (sbd_is_disk(s)) {
 #if SUPPORT_SHARED_DISK
 		DBGLOG(LOG_INFO, "Starting servant for device %s", s->devname);
-		s->pid = assign_servant(s->devname, servant, start_mode, s);
+		s->pid = assign_servant(s->devname, servant_md, start_mode, s);
 #else
                 cl_log(LOG_ERR, "Shared disk functionality not supported");
                 return;
@@ -785,12 +796,14 @@ parse_device_line(const char *line)
 
             if (lpc > last) {
                 entry = calloc(1, 1 + lpc - last);
+                if (!entry) {
+                    fprintf(stderr, "heap allocation failed parsing device-line.\n");
+                    exit(1);
+                }
                 rc = sscanf(line + last, "%[^;]", entry);
             }
 
-            if (entry == NULL) {
-                /* Skip */
-            } else if (rc != 1) {
+            if (rc != 1) {
                 cl_log(LOG_WARNING, "Could not parse (%d %d): %s", last, lpc, line + last);
             } else {
                 cl_log(LOG_DEBUG, "Adding '%s'", entry);

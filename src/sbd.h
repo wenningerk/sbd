@@ -175,7 +175,7 @@ int ping_via_slots(const char *name, struct servants_list_item *servants);
 int dump_headers(struct servants_list_item *servants);
 unsigned long get_first_msgwait(struct servants_list_item *servants);
 int messenger(const char *name, const char *msg, struct servants_list_item *servants);
-int servant(const char *diskname, int mode, const void* argp);
+int servant_md(const char *diskname, int mode, const void* argp);
 #endif
 
 int servant_pcmk(const char *diskname, int mode, const void* argp);
