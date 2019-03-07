@@ -174,6 +174,25 @@ cmap_dispatch_callback (gpointer user_data)
     return TRUE;
 }
 
+static void
+cmap_destroy(void)
+{
+    if (cmap_source) {
+        g_source_destroy(cmap_source);
+        cmap_source = NULL;
+    }
+
+    if (track_handle) {
+        cmap_track_delete(cmap_handle, track_handle);
+        track_handle = 0;
+    }
+
+    if (cmap_handle) {
+        cmap_finalize(cmap_handle);
+        cmap_handle = 0;
+    }
+}
+
 static gboolean
 sbd_get_two_node(void)
 {
@@ -217,18 +236,7 @@ sbd_get_two_node(void)
     return TRUE;
 
 out:
-    if (cmap_source) {
-        g_source_destroy(cmap_source);
-        cmap_source = NULL;
-    }
-    if (track_handle) {
-        cmap_track_delete(cmap_handle, track_handle);
-        track_handle = 0;
-    }
-    if (cmap_handle) {
-        cmap_finalize(cmap_handle);
-        cmap_handle = 0;
-    }
+    cmap_destroy();
 
     return FALSE;
 }
@@ -326,6 +334,12 @@ static void
 sbd_membership_destroy(gpointer user_data)
 {
     cl_log(LOG_WARNING, "Lost connection to %s", name_for_cluster_type(get_cluster_type()));
+
+    if (get_cluster_type() != pcmk_cluster_unknown) {
+#if SUPPORT_COROSYNC && CHECK_TWO_NODE
+        cmap_destroy();
+#endif
+    }
 
     set_servant_health(pcmk_health_unclean, LOG_ERR, "Cluster connection terminated");
     notify_parent();
