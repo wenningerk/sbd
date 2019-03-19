@@ -103,6 +103,9 @@ static pe_working_set_t *data_set = NULL;
 
 static long last_refresh = 0;
 
+static int pcmk_clean_shutdown = 0;
+static int pcmk_shutdown = 0;
+
 static gboolean
 mon_timer_reconnect(gpointer data)
 {
@@ -128,10 +131,26 @@ mon_cib_connection_destroy(gpointer user_data)
 {
 	if (cib) {
 		cib->cmds->signoff(cib);
+		/* retrigger as last one might have been skipped */
+		mon_refresh_state(NULL);
+		if (pcmk_clean_shutdown) {
+			/* assume a graceful pacemaker-shutdown */
+			clean_up(EXIT_PCMK_SERVANT_GRACEFUL_SHUTDOWN);
+		}
+		/* getting here we aren't sure about the pacemaker-state
+		   so try to use the timeout to reconnect and get
+		   everything sorted out again
+		 */
+		pcmk_shutdown = 0;
 		set_servant_health(pcmk_health_transient, LOG_WARNING, "Disconnected from CIB");
 		timer_id_reconnect = g_timeout_add(reconnect_msec, mon_timer_reconnect, NULL);
 	}
 	cib_connected = 0;
+	/* no sense in looking into outdated cib, trying to apply patch, ... */
+	if (current_cib) {
+		free_xml(current_cib);
+		current_cib = NULL;
+	}
 	return;
 }
 
@@ -171,7 +190,7 @@ static gboolean
 mon_timer_notify(gpointer data)
 {
 	static int counter = 0;
-	int counter_max = timeout_watchdog / timeout_loop;
+	int counter_max = timeout_watchdog / timeout_loop / 2;
 
 	if (timer_id_notify > 0) {
 		g_source_remove(timer_id_notify);
@@ -280,11 +299,6 @@ compute_status(pe_working_set_t * data_set)
     } else if (node->details->pending) {
         set_servant_health(pcmk_health_pending, LOG_WARNING, "Node state: pending");
 
-#if 0
-    } else if (node->details->shutdown) {
-        set_servant_health(pcmk_health_shutdown, LOG_WARNING, "Node state: shutting down");
-#endif
-
     } else if (data_set->flags & pe_flag_have_quorum) {
         set_servant_health(pcmk_health_online, LOG_INFO, "Node state: online");
         ever_had_quorum = TRUE;
@@ -315,6 +329,12 @@ compute_status(pe_working_set_t * data_set)
         }
     }
 
+    if (node->details->shutdown) {
+        pcmk_shutdown = 1;
+    }
+    if (pcmk_shutdown && !(node->details->running_rsc)) {
+        pcmk_clean_shutdown = 1;
+    }
     notify_parent();
     return;
 }
@@ -339,7 +359,7 @@ crm_diff_update(const char *event, xmlNode * msg)
         static mainloop_timer_t *refresh_timer = NULL;
 
         if(refresh_timer == NULL) {
-            refresh_timer = mainloop_timer_add("refresh", 2000, FALSE, mon_trigger_refresh, NULL);
+            refresh_timer = mainloop_timer_add("refresh", reconnect_msec, FALSE, mon_trigger_refresh, NULL);
             refresh_trigger = mainloop_add_trigger(G_PRIORITY_LOW, mon_refresh_state, refresh_timer);
         }
 
@@ -369,9 +389,9 @@ crm_diff_update(const char *event, xmlNode * msg)
 	}
 
     /* Refresh
-     * - immediately if the last update was more than 5s ago
+     * - immediately if the last update was more than 1s ago
      * - every 10 updates
-     * - at most 2s after the last update
+     * - at most 1s after the last update
      */
     if (updates > 10 || (now - last_refresh) > (reconnect_msec / 1000)) {
         mon_refresh_state(refresh_timer);

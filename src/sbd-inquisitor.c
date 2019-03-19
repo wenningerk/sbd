@@ -490,21 +490,37 @@ void inquisitor_child(void)
 					if (sbd_is_disk(s)) {
 						if (WIFEXITED(status)) {
 							switch(WEXITSTATUS(status)) {
-								case EXIT_MD_IO_FAIL:
+								case EXIT_MD_SERVANT_IO_FAIL:
 									DBGLOG(LOG_INFO, "Servant for %s requests to be disowned",
 										s->devname);
 									break;
-								case EXIT_MD_REQUEST_RESET:
+								case EXIT_MD_SERVANT_REQUEST_RESET:
 									cl_log(LOG_WARNING, "%s requested a reset", s->devname);
 									do_reset();
 									break;
-								case EXIT_MD_REQUEST_SHUTOFF:
+								case EXIT_MD_SERVANT_REQUEST_SHUTOFF:
 									cl_log(LOG_WARNING, "%s requested a shutoff", s->devname);
 									do_off();
 									break;
-								case EXIT_MD_REQUEST_CRASHDUMP:
+								case EXIT_MD_SERVANT_REQUEST_CRASHDUMP:
 									cl_log(LOG_WARNING, "%s requested a crashdump", s->devname);
 									do_crashdump();
+									break;
+								default:
+									break;
+							}
+						}
+					} else if (sbd_is_pcmk(s)) {
+						if (WIFEXITED(status)) {
+							switch(WEXITSTATUS(status)) {
+								case EXIT_PCMK_SERVANT_GRACEFUL_SHUTDOWN:
+									DBGLOG(LOG_INFO, "PCMK-Servant has exited gracefully");
+									/* revert to state prior to pacemaker-detection */
+									s->restarts = 0;
+									s->restart_blocked = 0;
+									cluster_appeared = 0;
+									s->outdated = 1;
+									s->t_last.tv_sec = 0;
 									break;
 								default:
 									break;

@@ -54,10 +54,13 @@
 /* FIXME: should add dynamic check of SIG_XX >= SIGRTMAX */
 
 /* exit status for disk-servant */
-#define EXIT_MD_IO_FAIL             20
-#define EXIT_MD_REQUEST_RESET       21
-#define EXIT_MD_REQUEST_SHUTOFF     22
-#define EXIT_MD_REQUEST_CRASHDUMP   23
+#define EXIT_MD_SERVANT_IO_FAIL             20
+#define EXIT_MD_SERVANT_REQUEST_RESET       21
+#define EXIT_MD_SERVANT_REQUEST_SHUTOFF     22
+#define EXIT_MD_SERVANT_REQUEST_CRASHDUMP   23
+
+/* exit status for pcmk-servant */
+#define EXIT_PCMK_SERVANT_GRACEFUL_SHUTDOWN 30
 
 #define HOG_CHAR	0xff
 #define SECTOR_NAME_MAX 63
