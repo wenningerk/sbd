@@ -276,7 +276,7 @@ compute_status(pe_working_set_t * data_set)
     static int updates = 0;
     static int ever_had_quorum = FALSE;
 
-    node_t *node = pe_find_node(data_set->nodes, local_uname);
+    node_t *node = NULL;
 
     updates++;
 
@@ -286,11 +286,15 @@ compute_status(pe_working_set_t * data_set)
         return;
     }
 
+    node = pe_find_node(data_set->nodes, local_uname);
 
-    if (node == NULL) {
+    if ((node == NULL) || (node->details == NULL)) {
         set_servant_health(pcmk_health_unknown, LOG_WARNING, "Node state: %s is UNKNOWN", local_uname);
+        notify_parent();
+        return;
+    }
 
-    } else if (node->details->online == FALSE) {
+    if (node->details->online == FALSE) {
         set_servant_health(pcmk_health_unknown, LOG_WARNING, "Node state: OFFLINE");
 
     } else if (node->details->unclean) {
