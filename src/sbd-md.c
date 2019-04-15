@@ -162,9 +162,9 @@ sector_io(struct sbd_context *st, int sector, void *data, int rw)
 
 	memset(&st->io, 0, sizeof(struct iocb));
 	if (rw) {
-		io_prep_pwrite(&st->io, st->devfd, data, sector_size, sector_size * sector);
+		io_prep_pwrite(&st->io, st->devfd, data, sector_size, (long long) sector_size * sector);
 	} else {
-		io_prep_pread(&st->io, st->devfd, data, sector_size, sector_size * sector);
+		io_prep_pread(&st->io, st->devfd, data, sector_size, (long long) sector_size * sector);
 	}
 
 	if (io_submit(st->ioctx, 1, ios) != 1) {
