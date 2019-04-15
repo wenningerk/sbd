@@ -1088,7 +1088,8 @@ int main(int argc, char **argv, char **envp)
 			break;
 		case 'h':
 			usage();
-			return (0);
+			goto out;
+			break;
 		default:
 			exit_status = -2;
 			goto out;
@@ -1241,6 +1242,9 @@ int main(int argc, char **argv, char **envp)
         }
         
   out:
+	if (timeout_action) {
+				free(timeout_action);
+	}
 	if (exit_status < 0) {
 		if (exit_status == -2) {
 			usage();
