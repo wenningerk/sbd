@@ -780,56 +780,56 @@ int inquisitor(void)
 int
 parse_device_line(const char *line)
 {
-    int lpc = 0;
-    int last = 0;
-    int max = 0;
+    size_t lpc = 0;
+    size_t last = 0;
+    size_t max = 0;
     int found = 0;
+    bool skip_space = true;
+    int space_run = 0;
 
-    if(line) {
-        max = strlen(line);
+    if (!line) {
+        return 0;
     }
 
-    if (max <= 0) {
-        return found;
-    }
+    max = strlen(line);
 
-    cl_log(LOG_DEBUG, "Processing %d bytes: [%s]", max, line);
-    /* Skip initial whitespace */
-    for (lpc = 0; lpc <= max && isspace(line[lpc]); lpc++) {
-        last = lpc + 1;
-    }
+    cl_log(LOG_DEBUG, "Processing %d bytes: [%s]", (int) max, line);
 
-    /* Now the actual content */
     for (lpc = 0; lpc <= max; lpc++) {
-        int a_space = isspace(line[lpc]);
+        if (isspace(line[lpc])) {
+            if (skip_space) {
+                last = lpc + 1;
+            } else {
+                space_run++;
+            }
+            continue;
+        }
+        skip_space = false;
+        if (line[lpc] == ';' || line[lpc] == 0) {
+            int rc = 0;
+            char *entry = calloc(1, 1 + lpc - last);
 
-        if (a_space && lpc < max && isspace(line[lpc + 1])) {
-            /* fast-forward to the end of the spaces */
-
-        } else if (a_space || line[lpc] == ';' || line[lpc] == 0) {
-            int rc = 1;
-            char *entry = NULL;
-
-            if (lpc > last) {
-                entry = calloc(1, 1 + lpc - last);
-                if (!entry) {
-                    fprintf(stderr, "heap allocation failed parsing device-line.\n");
-                    exit(1);
-                }
+            if (entry) {
                 rc = sscanf(line + last, "%[^;]", entry);
+            } else {
+                fprintf(stderr, "Heap allocation failed parsing device-line.\n");
+                exit(1);
             }
 
             if (rc != 1) {
-                cl_log(LOG_WARNING, "Could not parse (%d %d): %s", last, lpc, line + last);
+                cl_log(LOG_WARNING, "Could not parse: '%s'", line + last);
             } else {
+                entry[strlen(entry)-space_run] = '\0';
                 cl_log(LOG_DEBUG, "Adding '%s'", entry);
                 recruit_servant(entry, 0);
                 found++;
             }
 
             free(entry);
+            skip_space = true;
             last = lpc + 1;
         }
+        space_run = 0;
     }
     return found;
 }
@@ -890,7 +890,7 @@ int main(int argc, char **argv, char **envp)
             int devices = parse_device_line(value);
             if(devices < 1) {
                 fprintf(stderr, "Invalid device line: %s\n", value);
-		exit_status = -2;
+                exit_status = -2;
                 goto out;
             }
 #else
@@ -1088,7 +1088,8 @@ int main(int argc, char **argv, char **envp)
 			break;
 		case 'h':
 			usage();
-			return (0);
+			goto out;
+			break;
 		default:
 			exit_status = -2;
 			goto out;
@@ -1241,6 +1242,9 @@ int main(int argc, char **argv, char **envp)
         }
         
   out:
+	if (timeout_action) {
+				free(timeout_action);
+	}
 	if (exit_status < 0) {
 		if (exit_status == -2) {
 			usage();

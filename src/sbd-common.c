@@ -568,13 +568,13 @@ enum {
 #define IOPRIO_PRIO_DATA(mask)  ((mask) & IOPRIO_PRIO_MASK)
 #define IOPRIO_PRIO_VALUE(class, data)  (((class) << IOPRIO_CLASS_SHIFT) | data)
 
-static unsigned char
+static void
 sbd_stack_hogger(unsigned char * inbuf, int kbytes)
 {
     unsigned char buf[1024];
 
     if(kbytes <= 0) {
-        return HOG_CHAR;
+        return;
     }
 
     if (inbuf == NULL) {
@@ -584,10 +584,10 @@ sbd_stack_hogger(unsigned char * inbuf, int kbytes)
     }
 
     if (kbytes > 0) {
-        return sbd_stack_hogger(buf, kbytes-1);
-    } else {
-        return buf[sizeof(buf)-1];
+        sbd_stack_hogger(buf, kbytes-1);
     }
+
+    return;
 }
 
 static void

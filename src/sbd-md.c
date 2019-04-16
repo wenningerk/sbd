@@ -162,9 +162,9 @@ sector_io(struct sbd_context *st, int sector, void *data, int rw)
 
 	memset(&st->io, 0, sizeof(struct iocb));
 	if (rw) {
-		io_prep_pwrite(&st->io, st->devfd, data, sector_size, sector_size * sector);
+		io_prep_pwrite(&st->io, st->devfd, data, sector_size, (long long) sector_size * sector);
 	} else {
-		io_prep_pread(&st->io, st->devfd, data, sector_size, sector_size * sector);
+		io_prep_pread(&st->io, st->devfd, data, sector_size, (long long) sector_size * sector);
 	}
 
 	if (io_submit(st->ioctx, 1, ios) != 1) {
@@ -373,7 +373,6 @@ init_device(struct sbd_context *st)
 	struct sector_header_s	*s_header;
 	struct sector_node_s	*s_node;
 	struct sector_mbox_s	*s_mbox;
-	struct stat 		s;
 	char			uuid[37];
 	int			i;
 	int			rc = 0;
@@ -393,10 +392,6 @@ init_device(struct sbd_context *st)
 	s_header->minor_version = 1;
 	uuid_generate(s_header->uuid);
 	uuid_unparse_lower(s_header->uuid, uuid);
-
-	fstat(st->devfd, &s);
-	/* printf("st_size = %ld, st_blksize = %ld, st_blocks = %ld\n",
-			s.st_size, s.st_blksize, s.st_blocks); */
 
 	cl_log(LOG_INFO, "Creating version %d.%d header on device %d (uuid: %s)",
 			s_header->version, s_header->minor_version,
