@@ -80,6 +80,10 @@ sbd_plugin_membership_dispatch(cpg_handle_t handle,
 
 #if SUPPORT_COROSYNC
 
+#if CHECK_CPG_HANDLE
+#include <corosync/cpg.h>
+#endif
+
 static bool two_node = false;
 static bool ever_seen_both = false;
 static int cpg_membership_entries = -1;
@@ -261,10 +265,25 @@ notify_timer_cb(gpointer data)
 
 #endif
         case pcmk_cluster_corosync:
+#if SUPPORT_COROSYNC && CHECK_CPG_HANDLE
+            {
+                unsigned int local_nodeid;
+
+                /* there is no value for a cpg_handle that is defined
+                   as invalid and there is 32bit randomness in it
+                   so going ahead with whatever found in
+                   cluster.cpg_handle should be safe
+                 */
+                if (cpg_local_get(cluster.cpg_handle, &local_nodeid) == CS_OK) {
+                    notify_parent();
+                }
+            }
+            break;
+#endif
+
 #if HAVE_DECL_PCMK_CLUSTER_CMAN
         case pcmk_cluster_cman:
 #endif
-            /* TODO - Make a CPG call and only call notify_parent() when we get a reply */
             notify_parent();
             break;
 

@@ -33,6 +33,7 @@ PKG_CHECK_MODULES(glib, [glib-2.0])
 dnl PKG_CHECK_MODULES(libcoroipcc, [libcoroipcc])
 
 PKG_CHECK_MODULES(cmap, [libcmap], HAVE_cmap=1, HAVE_cmap=0)
+PKG_CHECK_MODULES(cpg, [libcpg], HAVE_cpg=1, HAVE_cpg=0)
 
 dnl pacemaker > 1.1.8
 PKG_CHECK_MODULES(pacemaker, [pacemaker, pacemaker-cib], HAVE_pacemaker=1, HAVE_pacemaker=0)
@@ -49,7 +50,12 @@ elif test $HAVE_pacemaker = 1; then
     if test $HAVE_cmap = 0; then
         AC_MSG_NOTICE(No package 'cmap' found)
     else
-	CPPFLAGS="$CPPFLAGS $cmap_CFLAGS"
+        CPPFLAGS="$CPPFLAGS $cmap_CFLAGS"
+    fi
+    if test $HAVE_cpg = 0; then
+        AC_MSG_NOTICE(No package 'cpg' found)
+    else
+        CPPFLAGS="$CPPFLAGS $cpg_CFLAGS"
     fi
 fi
 
@@ -66,6 +72,7 @@ AC_CHECK_LIB(pe_rules, test_rule, , missing="yes")
 AC_CHECK_LIB(crmcluster, crm_peer_init, , missing="yes")
 AC_CHECK_LIB(uuid, uuid_unparse, , missing="yes")
 AC_CHECK_LIB(cmap, cmap_initialize, , HAVE_cmap=0)
+AC_CHECK_LIB(cpg, cpg_local_get, , HAVE_cpg=0)
 
 dnl pacemaker >= 1.1.8
 AC_CHECK_HEADERS(pacemaker/crm/cluster.h)
@@ -106,6 +113,9 @@ fi
 
 AC_DEFINE_UNQUOTED(CHECK_TWO_NODE, $HAVE_cmap, Turn on checking for 2-node cluster)
 AM_CONDITIONAL(CHECK_TWO_NODE, test "$HAVE_cmap" = "1")
+
+AC_DEFINE_UNQUOTED(CHECK_CPG_HANDLE, $HAVE_cpg, Turn on periodic checking of cpg-handle)
+AM_CONDITIONAL(CHECK_CPG_HANDLE, test "$HAVE_cpg" = "1")
 
 CONFIGDIR=""
 AC_ARG_WITH(configdir,
