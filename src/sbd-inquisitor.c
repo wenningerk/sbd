@@ -1175,8 +1175,6 @@ int main(int argc, char **argv, char **envp)
 			goto out;
 		}
 	}
-	cl_log(LOG_NOTICE, "%s flush + writing \'%c\' to sysrq on timeout",
-		do_flush?"Doing":"Skipping", timeout_sysrq_char);
 
 #if SUPPORT_SHARED_DISK
 	if (strcmp(argv[optind], "create") == 0) {
@@ -1238,6 +1236,8 @@ int main(int argc, char **argv, char **envp)
                         recruit_servant("cluster", 0);
                 }
 
+                cl_log(LOG_NOTICE, "%s flush + write \'%c\' to sysrq in case of timeout",
+                       do_flush?"Do":"Skip", timeout_sysrq_char);
                 exit_status = inquisitor();
         }
         
