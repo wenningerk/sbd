@@ -91,6 +91,20 @@ SBD_WATCHDOG_TIMEOUT=5
 #
 SBD_TIMEOUT_ACTION=flush,reboot
 
+## Type: yesno / auto
+## Default: auto
+#
+# If CPUAccounting is enabled default is not to assign any RT-budget
+# to the system.slice which prevents sbd from running RR-scheduled.
+#
+# One way to escape that issue is to move sbd-processes from the
+# slice they were originally started to root-slice.
+# Of course starting sbd in a certain slice might be intentional.
+# Thus in auto-mode sbd will check if the slice has RT-budget assigned.
+# If that is the case sbd will stay in that slice while it will
+# be moved to root-slice otherwise.
+SBD_MOVE_TO_ROOT_CGROUP=auto
+
 ## Type: string
 ## Default: ""
 #

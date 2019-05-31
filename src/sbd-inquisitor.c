@@ -33,6 +33,8 @@ int	start_mode = 0;
 char*	pidfile = NULL;
 bool do_flush = true;
 char timeout_sysrq_char = 'b';
+bool move_to_root_cgroup = true;
+bool enforce_moving_to_root_cgroup = false;
 
 int parse_device_line(const char *line);
 
@@ -963,6 +965,19 @@ int main(int argc, char **argv, char **envp)
         value = getenv("SBD_TIMEOUT_ACTION");
         if(value) {
             timeout_action = strdup(value);
+        }
+
+        value = getenv("SBD_MOVE_TO_ROOT_CGROUP");
+        if(value) {
+            move_to_root_cgroup = crm_is_true(value);
+
+            if (move_to_root_cgroup) {
+               enforce_moving_to_root_cgroup = true;
+            } else {
+                if (strcmp(value, "auto") == 0) {
+                    move_to_root_cgroup = true;
+                }
+            }
         }
 
 	while ((c = getopt(argc, argv, "czC:DPRTWZhvw:d:n:p:1:2:3:4:5:t:I:F:S:s:r:")) != -1) {

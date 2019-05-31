@@ -159,6 +159,8 @@ extern bool watchdogdev_is_default;
 extern char*  local_uname;
 extern bool do_flush;
 extern char timeout_sysrq_char;
+extern bool move_to_root_cgroup;
+extern bool enforce_moving_to_root_cgroup;
 
 /* Global, non-tunable variables: */
 extern int  sector_size;
