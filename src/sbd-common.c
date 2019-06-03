@@ -662,6 +662,112 @@ static void sbd_memlock(int stackgrowK, int heapgrowK)
 #endif
 }
 
+static int get_realtime_budget(void)
+{
+    FILE *f;
+    char fname[PATH_MAX];
+    int res = -1, lnum = 0;
+    char *cgroup = NULL, *namespecs = NULL;
+
+    snprintf(fname, PATH_MAX, "/proc/%jd/cgroup", (intmax_t)getpid());
+    f = fopen(fname, "rt");
+    if (f == NULL) {
+        cl_log(LOG_WARNING, "Can't open cgroup file for pid=%jd",
+                            (intmax_t)getpid());
+        goto exit_res;
+    }
+    while( fscanf(f, "%d:%m[^:]:%m[^\n]", &lnum,  &namespecs, &cgroup) !=EOF ) {
+        if (namespecs && strstr(namespecs, "cpuacct")) {
+            free(namespecs);
+            break;
+        }
+        if (cgroup) {
+            free(cgroup);
+            cgroup = NULL;
+        }
+        if (namespecs) {
+            free(namespecs);
+            namespecs = NULL;
+        }
+    }
+    fclose(f);
+    if (cgroup == NULL) {
+        cl_log(LOG_WARNING, "Failed getting cgroup for pid=%jd",
+                            (intmax_t)getpid());
+        goto exit_res;
+    }
+    snprintf(fname, PATH_MAX, "/sys/fs/cgroup/cpu%s/cpu.rt_runtime_us",
+                              cgroup);
+    f = fopen(fname, "rt");
+    if (f == NULL) {
+        cl_log(LOG_WARNING, "cpu.rt_runtime_us existed for root-slice but "
+            "doesn't for '%s'", cgroup);
+        goto exit_res;
+    }
+    if (fscanf(f, "%d", &res) != 1) {
+        cl_log(LOG_WARNING, "failed reading rt-budget from %s", fname);
+    } else {
+        cl_log(LOG_INFO, "slice='%s' has rt-budget=%d", cgroup, res);
+    }
+    fclose(f);
+
+exit_res:
+    if (cgroup) {
+        free(cgroup);
+    }
+    return res;
+}
+
+/* stolen from corosync */
+static int sbd_move_to_root_cgroup(bool enforce_root_cgroup) {
+    FILE *f;
+    int res = -1;
+
+    /*
+     * /sys/fs/cgroup is hardcoded, because most of Linux distributions are now
+     * using systemd and systemd uses hardcoded path of cgroup mount point.
+     *
+     * This feature is expected to be removed as soon as systemd gets support
+     * for managing RT configuration.
+     */
+    f = fopen("/sys/fs/cgroup/cpu/cpu.rt_runtime_us", "rt");
+    if (f == NULL) {
+        cl_log(LOG_DEBUG, "cpu.rt_runtime_us doesn't exist -> "
+            "system without cgroup or with disabled CONFIG_RT_GROUP_SCHED");
+        res = 0;
+        goto exit_res;
+    }
+    fclose(f);
+
+    if ((!enforce_root_cgroup) && (get_realtime_budget() > 0)) {
+        cl_log(LOG_DEBUG, "looks as if we have rt-budget in the slice we are "
+                          "-> skip moving to root-slice");
+        res = 0;
+        goto exit_res;
+    }
+
+    f = fopen("/sys/fs/cgroup/cpu/tasks", "w");
+    if (f == NULL) {
+        cl_log(LOG_WARNING, "Can't open cgroups tasks file for writing");
+
+        goto exit_res;
+    }
+
+    if (fprintf(f, "%jd\n", (intmax_t)getpid()) <= 0) {
+        cl_log(LOG_WARNING, "Can't write sbd pid into cgroups tasks file");
+        goto close_and_exit_res;
+    }
+
+close_and_exit_res:
+    if (fclose(f) != 0) {
+        cl_log(LOG_WARNING, "Can't close cgroups tasks file");
+        goto exit_res;
+    }
+
+exit_res:
+    return (res);
+}
+
 void
 sbd_make_realtime(int priority, int stackgrowK, int heapgrowK)
 {
@@ -670,6 +776,10 @@ sbd_make_realtime(int priority, int stackgrowK, int heapgrowK)
     }
 
 #ifdef SCHED_RR
+    if (move_to_root_cgroup) {
+        sbd_move_to_root_cgroup(enforce_moving_to_root_cgroup);
+    }
+
     {
         int pcurrent = 0;
         int pmin = sched_get_priority_min(SCHED_RR);
