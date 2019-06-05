@@ -80,6 +80,12 @@ sbd_plugin_membership_dispatch(cpg_handle_t handle,
 
 #if SUPPORT_COROSYNC
 
+#if CHECK_VOTEQUORUM_HANDLE
+#include <corosync/votequorum.h>
+
+static votequorum_handle_t votequorum_handle = 0;
+#endif
+
 static bool two_node = false;
 static bool ever_seen_both = false;
 static int cpg_membership_entries = -1;
@@ -261,12 +267,32 @@ notify_timer_cb(gpointer data)
 
 #endif
         case pcmk_cluster_corosync:
+            do {
+#if SUPPORT_COROSYNC && CHECK_VOTEQUORUM_HANDLE
+                struct votequorum_info info;
+
+                if (votequorum_getinfo(votequorum_handle, 0, &info) != CS_OK) {
+
+                    votequorum_finalize(votequorum_handle);
+                    if (votequorum_initialize(&votequorum_handle, NULL) != CS_OK) {
+                        votequorum_handle = 0;
+                        break;
+                    }
+                    if (votequorum_getinfo(votequorum_handle, 0, &info) != CS_OK) {
+                        break;
+                    }
+                }
+#endif
+                notify_parent();
+            } while (0);
+            break;
+
 #if HAVE_DECL_PCMK_CLUSTER_CMAN
         case pcmk_cluster_cman:
-#endif
-            /* TODO - Make a CPG call and only call notify_parent() when we get a reply */
+
             notify_parent();
             break;
+#endif
 
         default:
             break;
@@ -533,6 +559,12 @@ find_pacemaker_remote(void)
 static void
 clean_up(int rc)
 {
+#if CHECK_VOTEQUORUM_HANDLE
+    votequorum_finalize(votequorum_handle);
+    votequorum_handle = 0; /* there isn't really an invalid handle value
+                            * just to be back where we started
+                            */
+#endif
     return;
 }
 
