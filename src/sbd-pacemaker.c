@@ -333,11 +333,41 @@ compute_status(pe_working_set_t * data_set)
         }
     }
 
+    /* If we are in shutdown-state once this will go on till the end.
+     * If we've on top reached a state of 0 locally running resources
+     * we can assume a clean shutdown.
+     * Tricky are the situations where the node is in maintenance-mode
+     * or resources are unmanaged. So if the node is in maintenance or
+     * all left-over running resources are unmanaged we assume intention.
+     */
     if (node->details->shutdown) {
         pcmk_shutdown = 1;
     }
-    if (pcmk_shutdown && !(node->details->running_rsc)) {
+    if (pcmk_shutdown)
+    {
         pcmk_clean_shutdown = 1;
+        if (!(node->details->maintenance)) {
+            GListPtr iter;
+
+            for (iter = node->details->running_rsc;
+                 iter != NULL; iter = iter->next) {
+                resource_t *rsc = (resource_t *) iter->data;
+
+
+                if (is_set(rsc->flags, pe_rsc_managed)) {
+                    pcmk_clean_shutdown = 0;
+                    crm_debug("not clean as %s managed and still running",
+                              rsc->id);
+                    break;
+                }
+            }
+            if (pcmk_clean_shutdown) {
+                crm_debug("pcmk_clean_shutdown because "
+                          "all managed resources down");
+            }
+        } else {
+            crm_debug("pcmk_clean_shutdown because node is in maintenance");
+        }
     }
     notify_parent();
     return;
