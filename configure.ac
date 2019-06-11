@@ -48,7 +48,7 @@ if test $HAVE_pacemaker = 0 -a $HAVE_pcmk = 0; then
 elif test $HAVE_pacemaker = 1; then
     CPPFLAGS="$CPPFLAGS $glib_CFLAGS $pacemaker_CFLAGS"
     if test $HAVE_cmap = 0; then
-        AC_MSG_NOTICE(No package 'cmap' found)
+        AC_MSG_NOTICE(No library 'cmap' found)
     else
         CPPFLAGS="$CPPFLAGS $cmap_CFLAGS"
     fi
