@@ -33,6 +33,7 @@ PKG_CHECK_MODULES(glib, [glib-2.0])
 dnl PKG_CHECK_MODULES(libcoroipcc, [libcoroipcc])
 
 PKG_CHECK_MODULES(cmap, [libcmap], HAVE_cmap=1, HAVE_cmap=0)
+PKG_CHECK_MODULES(votequorum, [libvotequorum], HAVE_votequorum=1, HAVE_votequorum=0)
 
 dnl pacemaker > 1.1.8
 PKG_CHECK_MODULES(pacemaker, [pacemaker, pacemaker-cib], HAVE_pacemaker=1, HAVE_pacemaker=0)
@@ -47,9 +48,14 @@ if test $HAVE_pacemaker = 0 -a $HAVE_pcmk = 0; then
 elif test $HAVE_pacemaker = 1; then
     CPPFLAGS="$CPPFLAGS $glib_CFLAGS $pacemaker_CFLAGS"
     if test $HAVE_cmap = 0; then
-        AC_MSG_NOTICE(No package 'cmap' found)
+        AC_MSG_NOTICE(No library 'cmap' found)
     else
-	CPPFLAGS="$CPPFLAGS $cmap_CFLAGS"
+        CPPFLAGS="$CPPFLAGS $cmap_CFLAGS"
+    fi
+    if test $HAVE_votequorum = 0; then
+        AC_MSG_NOTICE(No library 'votequorum' found)
+    else
+        CPPFLAGS="$CPPFLAGS $votequorum_CFLAGS"
     fi
 fi
 
@@ -66,6 +72,7 @@ AC_CHECK_LIB(pe_rules, test_rule, , missing="yes")
 AC_CHECK_LIB(crmcluster, crm_peer_init, , missing="yes")
 AC_CHECK_LIB(uuid, uuid_unparse, , missing="yes")
 AC_CHECK_LIB(cmap, cmap_initialize, , HAVE_cmap=0)
+AC_CHECK_LIB(votequorum, votequorum_getinfo, , HAVE_votequorum=0)
 
 dnl pacemaker >= 1.1.8
 AC_CHECK_HEADERS(pacemaker/crm/cluster.h)
@@ -106,6 +113,9 @@ fi
 
 AC_DEFINE_UNQUOTED(CHECK_TWO_NODE, $HAVE_cmap, Turn on checking for 2-node cluster)
 AM_CONDITIONAL(CHECK_TWO_NODE, test "$HAVE_cmap" = "1")
+
+AC_DEFINE_UNQUOTED(CHECK_VOTEQUORUM_HANDLE, $HAVE_votequorum, Turn on periodic checking of votequorum-handle)
+AM_CONDITIONAL(CHECK_VOTEQUORUM_HANDLE, test "$HAVE_votequorum" = "1")
 
 CONFIGDIR=""
 AC_ARG_WITH(configdir,
