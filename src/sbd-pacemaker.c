@@ -383,6 +383,24 @@ mon_trigger_refresh(gpointer user_data)
     return FALSE;
 }
 
+#define XPATH_SHUTDOWN "//" XML_CIB_TAG_STATE "[@uname='%s']/" \
+    XML_TAG_TRANSIENT_NODEATTRS "/" XML_TAG_ATTR_SETS "/" \
+    XML_CIB_TAG_NVPAIR "[@name='" XML_CIB_ATTR_SHUTDOWN "']"
+
+static gboolean
+shutdown_attr_in_cib(void)
+{
+    xmlNode *match = NULL;
+    char *xpath_string;
+
+    xpath_string = crm_strdup_printf(XPATH_SHUTDOWN, local_uname);
+    if (xpath_string) {
+        match = get_xpath_object(xpath_string, current_cib, LOG_TRACE);
+        free(xpath_string);
+    }
+    return (match != NULL);
+}
+
 static void
 crm_diff_update(const char *event, xmlNode * msg)
 {
@@ -426,8 +444,10 @@ crm_diff_update(const char *event, xmlNode * msg)
      * - immediately if the last update was more than 1s ago
      * - every 10 updates
      * - at most 1s after the last update
+     * - shutdown attribute for our node set for the first time
      */
-    if (updates > 10 || (now - last_refresh) > (reconnect_msec / 1000)) {
+    if ((!pcmk_shutdown && shutdown_attr_in_cib()) ||
+	    (updates > 10 || (now - last_refresh) > (reconnect_msec / 1000))) {
         mon_refresh_state(refresh_timer);
         updates = 0;
 
