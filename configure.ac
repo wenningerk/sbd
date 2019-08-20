@@ -60,7 +60,8 @@ elif test $HAVE_pacemaker = 1; then
 fi
 
 PKG_CHECK_MODULES(libxml, [libxml-2.0])
-CPPFLAGS="$CPPFLAGS $libxml_CFLAGS $libqb_CFLAGS"
+CPPFLAGS="$CPPFLAGS $libxml_CFLAGS $libqb_CFLAGS $pacemaker_CFLAGS $pcmk_CFLAGS"
+LIBS="$LIBS $libxml_LIBS $libqb_LIBS $pacemaker_LIBS $pcmk_LIBS"
 
 dnl     checks for libraries
 AC_CHECK_LIB(aio, io_setup, , missing="yes")
@@ -75,7 +76,7 @@ AC_CHECK_LIB(cmap, cmap_initialize, , HAVE_cmap=0)
 AC_CHECK_LIB(votequorum, votequorum_getinfo, , HAVE_votequorum=0)
 
 dnl pacemaker >= 1.1.8
-AC_CHECK_HEADERS(pacemaker/crm/cluster.h)
+AC_CHECK_HEADERS(crm/cluster.h)
 AC_CHECK_LIB(crmcommon, pcmk_strerror, , missing="yes")
 AC_CHECK_LIB(cib, cib_apply_patch_event, , missing="yes")
 

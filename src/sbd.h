@@ -42,7 +42,7 @@
 #include <unistd.h>
 #include <uuid/uuid.h>
 #include <qb/qblog.h>
-#include <pacemaker/crm_config.h>
+#include <crm_config.h>
 #include <config.h>
 
 /* signals reserved for multi-disk sbd */
