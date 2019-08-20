@@ -51,11 +51,13 @@ elif test $HAVE_pacemaker = 1; then
         AC_MSG_NOTICE(No library 'cmap' found)
     else
         CPPFLAGS="$CPPFLAGS $cmap_CFLAGS"
+        LIBS="$LIBS $cmap_LIBS"
     fi
     if test $HAVE_votequorum = 0; then
         AC_MSG_NOTICE(No library 'votequorum' found)
     else
         CPPFLAGS="$CPPFLAGS $votequorum_CFLAGS"
+        LIBS="$LIBS $votequorum_LIBS"
     fi
 fi
 
