@@ -562,14 +562,14 @@ servant_pcmk(const char *diskname, int mode, const void* argp)
 		}
 	}
 
-	mainloop = g_main_new(FALSE);
+	mainloop = g_main_loop_new(NULL, FALSE);
 
 	mainloop_add_signal(SIGTERM, mon_shutdown);
 	mainloop_add_signal(SIGINT, mon_shutdown);
 	timer_id_notify = g_timeout_add(timeout_loop * 1000, mon_timer_notify, NULL);
 
-	g_main_run(mainloop);
-	g_main_destroy(mainloop);
+	g_main_loop_run(mainloop);
+	g_main_loop_unref(mainloop);
 
 	clean_up(0);
 	return 0;                   /* never reached */
