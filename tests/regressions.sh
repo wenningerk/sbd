@@ -27,6 +27,12 @@
 # - How to test watch mode?
 # - Can the unit/service file be tested? or at least the wrapper?
 
+: ${SBD_BINARY:="/usr/sbin/sbd"}
+
+sbd() {
+	${SBD_BINARY} $*
+}
+
 sbd_setup() {
 	trap sbd_teardown EXIT
 	for N in $(seq 3) ; do

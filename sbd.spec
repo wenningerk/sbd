@@ -15,8 +15,9 @@
 
 # Please submit bugfixes or comments via http://bugs.opensuse.org/
 #
-%global commit 2d595fdde4f62278b96db1b7fb79aae5e990bb0b
-%global shortcommit %(c=%{commit}; echo ${c:0:7})
+%global commit 5705703da3db01bb4c34fd73ae33f24b43a16b78-mod
+%global shortcommit %(echo %{commit}|cut -c1-8)
+%global modified %(echo %{commit}-|cut -f2 -d-)
 %global github_owner beekhof
 %global buildnum 1
 
@@ -25,7 +26,7 @@ Summary:        Storage-based death
 License:        GPLv2+
 Group:          System Environment/Daemons
 Version:        1.4.0
-Release:        0.%{buildnum}.%{shortcommit}.git%{?dist}
+Release:        99.%{buildnum}.%{shortcommit}.%{modified}git%{?dist}
 Url:            https://github.com/%{github_owner}/%{name}
 Source0:        https://github.com/%{github_owner}/%{name}/archive/%{commit}/%{name}-%{commit}.tar.gz
 BuildRoot:      %{_tmppath}/%{name}-%{version}-build
@@ -35,7 +36,11 @@ BuildRequires:  libuuid-devel
 BuildRequires:  glib2-devel
 BuildRequires:  libaio-devel
 BuildRequires:  corosynclib-devel
+%if 0%{?suse_version}
+BuildRequires:  libpacemaker-devel
+%else
 BuildRequires:  pacemaker-libs-devel
+%endif
 BuildRequires:  libtool
 BuildRequires:  libuuid-devel
 BuildRequires:  libxml2-devel
