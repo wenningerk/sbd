@@ -588,14 +588,14 @@ servant_cluster(const char *diskname, int mode, const void* argp)
     /* stonith_our_uname = cluster.uname; */
     /* stonith_our_uuid = cluster.uuid; */
 
-    mainloop = g_main_new(FALSE);
+    mainloop = g_main_loop_new(NULL, FALSE);
     notify_timer = g_timeout_add(timeout_loop * 1000, notify_timer_cb, NULL);
 
     mainloop_add_signal(SIGTERM, cluster_shutdown);
     mainloop_add_signal(SIGINT, cluster_shutdown);
     
-    g_main_run(mainloop);
-    g_main_destroy(mainloop);
+    g_main_loop_run(mainloop);
+    g_main_loop_unref(mainloop);
     
     clean_up(0);
     return 0;                   /* never reached */
