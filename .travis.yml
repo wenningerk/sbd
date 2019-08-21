@@ -8,7 +8,7 @@ os:
 env:
     global:
         - PACKAGE=sbd
-        - BUILD_OS_TYPE=fedora BUILD_OS_DIST= BUILD_OS_VERSION=29
+        - BUILD_OS_TYPE=fedora BUILD_OS_DIST= BUILD_OS_VERSION=30
 
 matrix:
     exclude:
@@ -21,11 +21,11 @@ matrix:
         - os:  linux
           env: OS_ARCH=x86_64 OS_TYPE=centos OS_MOCK=epel OS_DIST=centos OS_VERSION=6
         - os:  linux
-          env: OS_ARCH=x86_64 OS_TYPE=fedora OS_MOCK=fedora OS_DIST= OS_VERSION=28
-        - os:  linux
           env: OS_ARCH=x86_64 OS_TYPE=fedora OS_MOCK=fedora OS_DIST= OS_VERSION=29
+        - os:  linux
+          env: OS_ARCH=x86_64 OS_TYPE=fedora OS_MOCK=fedora OS_DIST= OS_VERSION=30
         - os:  linux-ppc64le
-          env: OS_ARCH=ppc64le OS_TYPE=fedora OS_MOCK=fedora OS_DIST= OS_VERSION=29
+          env: OS_ARCH=ppc64le OS_TYPE=fedora OS_MOCK=fedora OS_DIST= OS_VERSION=30
 
 services:
   - docker
@@ -45,5 +45,3 @@ addons:
   apt:
     packages:
         - rpm
-
-
