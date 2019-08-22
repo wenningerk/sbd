@@ -37,31 +37,32 @@ sbd_setup() {
 	trap sbd_teardown EXIT
 	for N in $(seq 3) ; do
 		F[$N]=$(mktemp /tmp/sbd.device.$N.XXXXXX)
+		R[$N]=$(echo ${F[$N]}|cut -f4 -d.)
 		dd if=/dev/zero of=${F[$N]} count=2048
 		L[$N]=$(losetup -f)
 		losetup ${L[$N]} ${F[$N]}
-		D[$N]="/dev/mapper/sbd_$N"
-		dmsetup create sbd_$N --table "0 2048 linear ${L[$N]} 0"
-		dmsetup mknodes sbd_$N
+		D[$N]="/dev/mapper/sbd_${N}_${R[$N]}"
+		dmsetup create sbd_${N}_${R[$N]} --table "0 2048 linear ${L[$N]} 0"
+		dmsetup mknodes sbd_${N}_${R[$N]}
 	done
 }
 
 sbd_teardown() {
 	for N in $(seq 3) ; do
-		dmsetup remove sbd_$N
+		dmsetup remove sbd_${N}_${R[$N]}
 		losetup -d ${L[$N]}
 		rm -f ${F[$N]}
 	done
 }
 
 sbd_dev_fail() {
-	dmsetup wipe_table sbd_$1
+	dmsetup wipe_table sbd_${1}_${R[$1]}
 }
 
 sbd_dev_resume() {
-	dmsetup suspend sbd_$1
-	dmsetup load sbd_$1 --table "0 2048 linear ${L[$1]} 0"
-	dmsetup resume sbd_$1
+	dmsetup suspend sbd_${1}_${R[$1]}
+	dmsetup load sbd_${1}_${R[$1]} --table "0 2048 linear ${L[$1]} 0"
+	dmsetup resume sbd_${1}_${R[$1]}
 }
 
 _ok() {
