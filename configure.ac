@@ -28,6 +28,10 @@ AC_CONFIG_HEADERS(config.h)
 m4_ifdef([AM_SILENT_RULES],[AM_SILENT_RULES([no])])
 AM_INIT_AUTOMAKE
 AM_PROG_CC_C_O
+LT_INIT
+AC_ENABLE_SHARED
+AC_DISABLE_STATIC
+AC_PROG_LIBTOOL(libtool)
 
 PKG_CHECK_MODULES(glib, [glib-2.0])
 dnl PKG_CHECK_MODULES(libcoroipcc, [libcoroipcc])
@@ -246,7 +250,7 @@ fi
 AC_SUBST(CONFIGDIR)
 
 dnl The Makefiles and shell scripts we output
-AC_CONFIG_FILES([Makefile src/Makefile agent/Makefile man/Makefile agent/sbd src/sbd.service src/sbd_remote.service src/sbd.sh])
+AC_CONFIG_FILES([Makefile src/Makefile agent/Makefile man/Makefile tests/Makefile agent/sbd src/sbd.service src/sbd_remote.service src/sbd.sh])
 
 dnl Now process the entire list of files added by previous 
 dnl  calls to AC_CONFIG_FILES()

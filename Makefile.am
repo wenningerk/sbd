@@ -1,4 +1,4 @@
-SUBDIRS = src agent man
+SUBDIRS = src agent man tests
 
 # .gz because github doesn't support .xz yet :-(
 # this is modified
