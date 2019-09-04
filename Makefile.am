@@ -42,7 +42,7 @@ export:
 	    rm -f $(PACKAGE).tar.*;                                             \
 	    (git archive --prefix=$(distdir)/ $(shell echo $(TAG)|cut -f1 -d-) || tar -c --transform="s,^,$(distdir)/," --exclude="*.tar.*" --exclude="$(distdir)" --exclude="*.o" --exclude="*.8" --exclude="config.*" --exclude="Makefile" --exclude="Makefile.in" --exclude="stamp-*" --exclude="*.service" --exclude="sbd" --exclude="*.m4" --exclude="*.cache" --exclude="configure" --exclude="*.list" --exclude="depcomp" --exclude="install-sh" --exclude="missing" --exclude="compile" --exclude="sbd.sh" --exclude="~" --exclude="*.swp" --exclude="*.patch" --exclude="*.diff" --exclude="*.orig" --exclude="*.rej" --exclude="*.rpm" --exclude=".deps" --exclude="test-driver" *) | gzip > $(TARFILE);	\
 	    if test -n "$$(git status -s)" || test "$(INJECT_GIT_COMMIT)" = "yes"; then \
-		if test -n "$$(git status -s)"; then git diff --name-only|grep -v "^\."|xargs -n1 git diff HEAD > uncommitted.diff; fi; \
+		if test -n "$$(git status -s)"; then git diff HEAD --name-only|grep -v "^\."|xargs -n1 git diff HEAD > uncommitted.diff; fi; \
 		rm -rf $(distdir); tar -xzf $(TARFILE); rm $(TARFILE); \
 		cd $(distdir); \
 		if test -n "$$(git status -s)"; then patch -p1 -i ../uncommitted.diff; fi; \
