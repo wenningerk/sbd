@@ -8,7 +8,7 @@ os:
 env:
     global:
         - PACKAGE=sbd
-        - BUILD_OS_TYPE=fedora BUILD_OS_DIST= BUILD_OS_VERSION=30
+        - BUILD_OS_TYPE=fedora BUILD_OS_DIST= BUILD_OS_VERSION=29
 
 matrix:
     exclude:
