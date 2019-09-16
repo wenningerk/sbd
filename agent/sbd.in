@@ -82,8 +82,10 @@ off|reset)
 status)
     sbd_check_device
     sbd_validate_timeout
-    if ! sbd -d $sbd_device list >/dev/null 2>&1 ; then
-    	ha_log.sh err "sbd could not list nodes from $sbd_device"
+    error_output=$(sbd -d $sbd_device list 2>&1 >/dev/null)
+    if [ $? -ne 0 ]; then
+    	error_message=$(echo "$error_output" | grep -v "please check the logs")
+    	ha_log.sh err "sbd list failed: $error_message"
     	exit 1
     fi
     exit 0
