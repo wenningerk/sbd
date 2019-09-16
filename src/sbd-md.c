@@ -790,14 +790,14 @@ int list_slots(struct servants_list_item *servants)
 		st = open_device(s->devname, LOG_WARNING);
 		if (!st) {
 			rc = -1;
-			fprintf(stdout, "== disk %s unreadable!\n", s->devname);
+			fprintf(stderr, "== disk %s unreadable!\n", s->devname);
 			continue;
 		}
 		rv = slot_list(st);
 		close_device(st);
 		if (rv == -1) {
 			rc = -1;
-			fprintf(stdout, "== Slots on disk %s NOT dumped\n", s->devname);
+			fprintf(stderr, "== Slots on disk %s NOT dumped\n", s->devname);
 		}
 	}
 	return rc;
@@ -938,13 +938,13 @@ int dump_headers(struct servants_list_item *servants)
 			rv = header_dump(st);
 			close_device(st);
 		} else {
-			fprintf(stdout, "== disk %s unreadable!\n", s->devname);
+			fprintf(stderr, "== disk %s unreadable!\n", s->devname);
 			rv = -1;
 		}
 
 		if (rv == -1) {
 			rc = -1;
-			fprintf(stdout, "==Header on disk %s NOT dumped\n", s->devname);
+			fprintf(stderr, "==Header on disk %s NOT dumped\n", s->devname);
 		} else {
 			fprintf(stdout, "==Header on disk %s is dumped\n", s->devname);
 		}
