@@ -81,7 +81,7 @@ usage(void)
 "-T		Do NOT initialize the watchdog timeout (watch only)\n"
 "-S <0|1>	Set start mode if the node was previously fenced (watch only)\n"
 "-p <path>	Write pidfile to the specified path (watch only)\n"
-"-v		Enable some verbose debug logging (optional)\n"
+"-v|-vv|-vvv	Enable verbose|debug|debug-library logging (optional)\n"
 "\n"
 "-1 <N>		Set watchdog timeout to N seconds (optional, create only)\n"
 "-2 <N>		Set slot allocation timeout to N seconds (optional, create only)\n"
