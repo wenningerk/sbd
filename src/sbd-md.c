@@ -957,6 +957,7 @@ void open_any_device(struct servants_list_item *servants)
 	struct sector_header_s *hdr_cur = NULL;
 	struct timespec t_0;
 	int t_wait = 0;
+	bool logged_once = false;
 
 	clock_gettime(CLOCK_MONOTONIC, &t_0);
 
@@ -966,12 +967,29 @@ void open_any_device(struct servants_list_item *servants)
 
 		for (s = servants; s; s = s->next) {
 			struct sbd_context *st = open_device(s->devname, LOG_DEBUG);
-			if (!st)
+			if (!st) {
+				if (logged_once == false) {
+					cl_log(LOG_WARNING, "Failed to open %s. "
+							"Trying any other configured devices, "
+							"otherwise retrying every %ds within %ds",
+							s->devname, timeout_loop, timeout_startup);
+					logged_once = true;
+				}
 				continue;
+			}
 			hdr_cur = header_get(st);
 			close_device(st);
-			if (hdr_cur)
+			if (hdr_cur) {
 				break;
+			} else {
+				if (logged_once == false) {
+					cl_log(LOG_WARNING, "Failed to read header from %s. "
+							"Trying any other configured devices, "
+							"otherwise retrying every %ds within %ds",
+							s->devname, timeout_loop, timeout_startup);
+					logged_once = true;
+				}
+			}
 		}
 		clock_gettime(CLOCK_MONOTONIC, &t_now);
 		t_wait = t_now.tv_sec - t_0.tv_sec;
