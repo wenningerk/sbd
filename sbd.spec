@@ -46,6 +46,7 @@ BuildRequires:  libuuid-devel
 BuildRequires:  libxml2-devel
 BuildRequires:  pkgconfig
 BuildRequires:  make
+Conflicts:      fence-agents-sbd < 4.5.0
 
 %if 0%{?rhel} > 0
 ExclusiveArch: i686 x86_64 s390x aarch64 ppc64le
