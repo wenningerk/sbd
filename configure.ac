@@ -22,11 +22,12 @@ dnl     checks for system services
 AC_INIT([sbd], 
 	[1.4.0],
 	[lmb@suse.com])
+m4_include([tests-opt.m4])
 AC_CANONICAL_HOST
 AC_CONFIG_AUX_DIR(.)
 AC_CONFIG_HEADERS(config.h)
 m4_ifdef([AM_SILENT_RULES],[AM_SILENT_RULES([no])])
-AM_INIT_AUTOMAKE
+AM_INIT_AUTOMAKE(1.11.1 foreign TESTS_OPTION)
 AM_PROG_CC_C_O
 LT_INIT
 AC_ENABLE_SHARED

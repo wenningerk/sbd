@@ -75,7 +75,7 @@ regression-testing sbd.
 ###########################################################
 
 %build
-autoreconf -i
+./autogen.sh
 export CFLAGS="$RPM_OPT_FLAGS -Wall -Werror"
 %configure
 make %{?_smp_mflags}
@@ -133,6 +133,7 @@ rm -rf %{buildroot}
 %dir %{_datadir}/sbd
 %{_datadir}/sbd/regressions.sh
 %{_libdir}/libfakeaio*
+%{_libdir}/libfakeblock*
 
 %changelog
 * Mon Jan 14 2019 <klaus.wenninger@aon.at> - 1.4.0-0.1.2d595fdd.git
