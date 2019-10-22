@@ -35,6 +35,8 @@ AC_DISABLE_STATIC
 AC_PROG_LIBTOOL(libtool)
 
 PKG_CHECK_MODULES(glib, [glib-2.0])
+PKG_CHECK_MODULES(libxml, [libxml-2.0])
+
 dnl PKG_CHECK_MODULES(libcoroipcc, [libcoroipcc])
 
 PKG_CHECK_MODULES(cmap, [libcmap], HAVE_cmap=1, HAVE_cmap=0)
@@ -45,13 +47,15 @@ PKG_CHECK_MODULES(pacemaker, [pacemaker, pacemaker-cib], HAVE_pacemaker=1, HAVE_
 
 dnl pacemaker <= 1.1.8
 PKG_CHECK_MODULES(pcmk, [pcmk, pcmk-cib], HAVE_pcmk=1, HAVE_pcmk=0)
+
 PKG_CHECK_MODULES(libqb, [libqb])
 
 CPPFLAGS="$CPPFLAGS -Werror"
 if test $HAVE_pacemaker = 0 -a $HAVE_pcmk = 0; then
     AC_MSG_ERROR(No package 'pacemaker' found)
 elif test $HAVE_pacemaker = 1; then
-    CPPFLAGS="$CPPFLAGS $glib_CFLAGS $pacemaker_CFLAGS"
+    CPPFLAGS="$CPPFLAGS $glib_CFLAGS $libxml_CFLAGS $libqb_CFLAGS $pacemaker_CFLAGS"
+    LIBS="$LIBS $glib_LIBS $libxml_LIBS $libqb_LIBS $pacemaker_LIBS" 
     if test $HAVE_cmap = 0; then
         AC_MSG_NOTICE(No library 'cmap' found)
     else
@@ -64,11 +68,10 @@ elif test $HAVE_pacemaker = 1; then
         CPPFLAGS="$CPPFLAGS $votequorum_CFLAGS"
         LIBS="$LIBS $votequorum_LIBS"
     fi
+else
+    CPPFLAGS="$CPPFLAGS $libxml_CFLAGS $libqb_CFLAGS $pcmk_CFLAGS"
+    LIBS="$LIBS libxml_LIBS $libqb_LIBS $pcmk_LIBS"
 fi
-
-PKG_CHECK_MODULES(libxml, [libxml-2.0])
-CPPFLAGS="$CPPFLAGS $libxml_CFLAGS $libqb_CFLAGS $pacemaker_CFLAGS $pcmk_CFLAGS"
-LIBS="$LIBS $libxml_LIBS $libqb_LIBS $pacemaker_LIBS $pcmk_LIBS"
 
 dnl     checks for libraries
 AC_CHECK_LIB(aio, io_setup, , missing="yes")

@@ -72,6 +72,10 @@ regression-testing sbd.
 ###########################################################
 # %setup -n sbd-%{version} -q
 %setup -q -n %{name}-%{commit}
+%ifarch s390x s390
+sed -i src/sbd.sysconfig -e "s/Default: 5/Default: 15/"
+sed -i src/sbd.sysconfig -e "s/SBD_WATCHDOG_TIMEOUT=5/SBD_WATCHDOG_TIMEOUT=15/"
+%endif
 ###########################################################
 
 %build
@@ -96,6 +100,10 @@ install -D -m 0644 src/sbd_remote.service $RPM_BUILD_ROOT/%{_unitdir}/sbd_remote
 
 mkdir -p ${RPM_BUILD_ROOT}%{_sysconfdir}/sysconfig
 install -m 644 src/sbd.sysconfig ${RPM_BUILD_ROOT}%{_sysconfdir}/sysconfig/sbd
+
+# Don't package static libs
+find %{buildroot} -name '*.a' -type f -print0 | xargs -0 rm -f
+find %{buildroot} -name '*.la' -type f -print0 | xargs -0 rm -f
 
 %clean
 rm -rf %{buildroot}
@@ -132,8 +140,7 @@ rm -rf %{buildroot}
 %defattr(-,root,root)
 %dir %{_datadir}/sbd
 %{_datadir}/sbd/regressions.sh
-%{_libdir}/libfakeaio*
-%{_libdir}/libfakeblock*
+%{_libdir}/libsbdtestbed*
 
 %changelog
 * Mon Jan 14 2019 <klaus.wenninger@aon.at> - 1.4.0-0.1.2d595fdd.git

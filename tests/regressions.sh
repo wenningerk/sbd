@@ -28,7 +28,7 @@
 # - Can the unit/service file be tested? or at least the wrapper?
 
 : ${SBD_BINARY:="/usr/sbin/sbd"}
-: ${SBD_PRELOAD:="libfakeblock.so"}
+: ${SBD_PRELOAD="libsbdtestbed.so"}
 : ${SBD_USE_DM:="yes"}
 
 sbd() {
