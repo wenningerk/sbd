@@ -4,7 +4,7 @@ dnl
 dnl License: GNU General Public License (GPL)
 
 dnl ===============================================
-dnl Bootstrap 
+dnl Bootstrap
 dnl ===============================================
 AC_PREREQ(2.63)
 
@@ -19,111 +19,27 @@ dnl     checks for compiler characteristics
 dnl     checks for library functions
 dnl     checks for system services
 
-AC_INIT([sbd], 
+AC_INIT([sbd],
 	[1.4.0],
 	[lmb@suse.com])
-m4_include([tests-opt.m4])
+m4_include([../tests-opt.m4])
 AC_CANONICAL_HOST
 AC_CONFIG_AUX_DIR(.)
 AC_CONFIG_HEADERS(config.h)
 m4_ifdef([AM_SILENT_RULES],[AM_SILENT_RULES([no])])
 AM_INIT_AUTOMAKE(1.11.1 foreign TESTS_OPTION)
+LT_INIT([dlopen],[disable-static])
 AM_PROG_CC_C_O
 
 PKG_CHECK_MODULES(glib, [glib-2.0])
-PKG_CHECK_MODULES(libxml, [libxml-2.0])
 
-PKG_CHECK_MODULES(cmap, [libcmap], HAVE_cmap=1, HAVE_cmap=0)
-PKG_CHECK_MODULES(votequorum, [libvotequorum], HAVE_votequorum=1, HAVE_votequorum=0)
-
-dnl pacemaker > 1.1.8
-PKG_CHECK_MODULES(pacemaker, [pacemaker, pacemaker-cib], HAVE_pacemaker=1, HAVE_pacemaker=0)
-
-dnl pacemaker <= 1.1.8
-PKG_CHECK_MODULES(pcmk, [pcmk, pcmk-cib], HAVE_pcmk=1, HAVE_pcmk=0)
-
-PKG_CHECK_MODULES(libqb, [libqb])
-
-CPPFLAGS="$CPPFLAGS -Werror $glib_CFLAGS $libxml_CFLAGS"
-LIBS="$LIBS $glib_LIBS $libxml_LIBS"
-
-if test $HAVE_pacemaker = 0 -a $HAVE_pcmk = 0; then
-    AC_MSG_ERROR(No package 'pacemaker' found)
-elif test $HAVE_pacemaker = 1; then
-    CPPFLAGS="$CPPFLAGS $glib_CFLAGS $pacemaker_CFLAGS"
-    if test $HAVE_cmap = 0; then
-        AC_MSG_NOTICE(No library 'cmap' found)
-    else
-        CPPFLAGS="$CPPFLAGS $cmap_CFLAGS"
-        LIBS="$LIBS $cmap_LIBS"
-    fi
-    if test $HAVE_votequorum = 0; then
-        AC_MSG_NOTICE(No library 'votequorum' found)
-    else
-        CPPFLAGS="$CPPFLAGS $votequorum_CFLAGS"
-        LIBS="$LIBS $votequorum_LIBS"
-    fi
-fi
-
-CPPFLAGS="$CPPFLAGS $libqb_CFLAGS $pacemaker_CFLAGS $pcmk_CFLAGS"
-LIBS="$LIBS $libqb_LIBS $pacemaker_LIBS $pcmk_LIBS"
+CPPFLAGS="$CPPFLAGS -Werror $glib_CFLAGS"
+LIBS="$LIBS $glib_LIBS"
 
 dnl     checks for libraries
 AC_CHECK_LIB(c, dlopen)                         dnl if dlopen is in libc...
 AC_CHECK_LIB(dl, dlopen)                        dnl -ldl (for Linux)
-AC_CHECK_LIB(aio, io_setup, , missing="yes")
-AC_CHECK_LIB(qb, qb_ipcs_connection_auth_set, , missing="yes")
-AC_CHECK_LIB(cib, cib_new, , missing="yes")
-AC_CHECK_LIB(crmcommon, set_crm_log_level, , missing="yes")
-AC_CHECK_LIB(pe_status, pe_find_node, , missing="yes")
-AC_CHECK_LIB(pe_rules, test_rule, , missing="yes")
-AC_CHECK_LIB(crmcluster, crm_peer_init, , missing="yes")
-AC_CHECK_LIB(uuid, uuid_unparse, , missing="yes")
-AC_CHECK_LIB(cmap, cmap_initialize, , HAVE_cmap=0)
-AC_CHECK_LIB(votequorum, votequorum_getinfo, , HAVE_votequorum=0)
 
-dnl pacemaker >= 1.1.8
-AC_CHECK_HEADERS(crm/cluster.h)
-AC_CHECK_LIB(crmcommon, pcmk_strerror, , missing="yes")
-AC_CHECK_LIB(cib, cib_apply_patch_event, , missing="yes")
-
-dnl pacemaker-2.0 removed support for corosync 1 cluster layer
-AC_CHECK_DECLS([pcmk_cluster_classic_ais, pcmk_cluster_cman],,,
-	       [#include <pacemaker/crm/cluster.h>])
-
-dnl check for new pe-API
-AC_CHECK_FUNCS(pe_new_working_set)
-
-if test "$missing" = "yes"; then
-   AC_MSG_ERROR([Missing required libraries or functions.])
-fi
-
-AC_PATH_PROGS(POD2MAN, pod2man, pod2man)
-
-AC_ARG_ENABLE([shared-disk],
-[  --enable-shared-disk Turn on functionality that requires shared disk
-     [default=yes]])
-
-DISK=0
-if test "x${enable_shared_disk}" != xno ; then
-   DISK=1
-fi
-
-AC_DEFINE_UNQUOTED(SUPPORT_SHARED_DISK, $DISK, Turn on functionality that requires shared disk)
-AM_CONDITIONAL(SUPPORT_SHARED_DISK, test "$DISK" = "1")
-
-if
-	test -e /proc/$$
-then
-	echo "/proc/{pid} is supported" 
-	AC_DEFINE_UNQUOTED(HAVE_PROC_PID, 1, Define to 1 if /proc/{pid} is supported.)
-fi
-
-AC_DEFINE_UNQUOTED(CHECK_TWO_NODE, $HAVE_cmap, Turn on checking for 2-node cluster)
-AM_CONDITIONAL(CHECK_TWO_NODE, test "$HAVE_cmap" = "1")
-
-AC_DEFINE_UNQUOTED(CHECK_VOTEQUORUM_HANDLE, $HAVE_votequorum, Turn on periodic checking of votequorum-handle)
-AM_CONDITIONAL(CHECK_VOTEQUORUM_HANDLE, test "$HAVE_votequorum" = "1")
 
 CONFIGDIR=""
 AC_ARG_WITH(configdir,
@@ -259,16 +175,9 @@ eval mandir="`eval echo ${mandir}`"
 
 AC_SUBST(LIBADD_DL)        dnl extra flags for dynamic linking libraries
 
-if test x"${CONFIGDIR}" = x""; then
-    CONFIGDIR="${sysconfdir}/sysconfig"
-fi
-AC_SUBST(CONFIGDIR)
-
 dnl The Makefiles and shell scripts we output
-AC_CONFIG_FILES([Makefile src/Makefile agent/Makefile man/Makefile agent/sbd src/sbd.service src/sbd_remote.service src/sbd.sh])
+AC_CONFIG_FILES([Makefile])
 
-AC_CONFIG_SUBDIRS([tests])
-
-dnl Now process the entire list of files added by previous 
+dnl Now process the entire list of files added by previous
 dnl  calls to AC_CONFIG_FILES()
 AC_OUTPUT()
