@@ -886,22 +886,6 @@ int main(int argc, char **argv, char **envp)
 
 	sbd_get_uname();
 
-        value = getenv("SBD_DEVICE");
-        if(value) {
-#if SUPPORT_SHARED_DISK
-            int devices = parse_device_line(value);
-            if(devices < 1) {
-                fprintf(stderr, "Invalid device line: %s\n", value);
-                exit_status = -2;
-                goto out;
-            }
-#else
-            fprintf(stderr, "Shared disk functionality not supported\n");
-            exit_status = -2;
-            goto out;
-#endif
-        }
-
         value = getenv("SBD_PACEMAKER");
         if(value) {
             check_pcmk = crm_is_true(value);
@@ -1110,6 +1094,28 @@ int main(int argc, char **argv, char **envp)
 			goto out;
 			break;
 		}
+	}
+
+    if (disk_count == 0) {
+        /* if we already have disks from commandline
+           then it is probably undesirable to add those
+           from environment (general rule cmdline has precedence)
+         */
+        value = getenv("SBD_DEVICE");
+        if ((value) && strlen(value)) {
+#if SUPPORT_SHARED_DISK
+            int devices = parse_device_line(value);
+            if(devices < 1) {
+                fprintf(stderr, "Invalid device line: %s\n", value);
+                exit_status = -2;
+                goto out;
+            }
+#else
+            fprintf(stderr, "Shared disk functionality not supported\n");
+            exit_status = -2;
+            goto out;
+#endif
+        }
 	}
 
 	if (watchdogdev == NULL || strcmp(watchdogdev, "/dev/null") == 0) {
