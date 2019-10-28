@@ -28,41 +28,78 @@
 # - Can the unit/service file be tested? or at least the wrapper?
 
 : ${SBD_BINARY:="/usr/sbin/sbd"}
+: ${SBD_PRELOAD="libsbdtestbed.so"}
+: ${SBD_USE_DM:="yes"}
 
 sbd() {
-	${SBD_BINARY} $*
+	LD_PRELOAD=${SBD_PRELOAD} SBD_WATCHDOG_TIMEOUT=5 SBD_DEVICE="${SBD_DEVICE}" SBD_PRELOAD_LOG=${SBD_PRELOAD_LOG} SBD_WATCHDOG_DEV=/dev/watchdog setsid ${SBD_BINARY} -p ${SBD_PIDFILE} $*
+}
+
+sbd_wipe_disk() {
+	dd if=/dev/zero of=$1 count=2048 2>/dev/null
 }
 
 sbd_setup() {
 	trap sbd_teardown EXIT
 	for N in $(seq 3) ; do
 		F[$N]=$(mktemp /tmp/sbd.device.$N.XXXXXX)
-		R[$N]=$(echo ${F[$N]}|cut -f4 -d.)
-		dd if=/dev/zero of=${F[$N]} count=2048
-		L[$N]=$(losetup -f)
-		losetup ${L[$N]} ${F[$N]}
-		D[$N]="/dev/mapper/sbd_${N}_${R[$N]}"
-		dmsetup create sbd_${N}_${R[$N]} --table "0 2048 linear ${L[$N]} 0"
-		dmsetup mknodes sbd_${N}_${R[$N]}
+		sbd_wipe_disk ${F[$N]}
+		if [[ "${SBD_USE_DM}" == "yes" ]]; then
+			R[$N]=$(echo ${F[$N]}|cut -f4 -d.)
+			L[$N]=$(losetup -f)
+			losetup ${L[$N]} ${F[$N]}
+			D[$N]="/dev/mapper/sbd_${N}_${R[$N]}"
+			dmsetup create sbd_${N}_${R[$N]} --table "0 2048 linear ${L[$N]} 0"
+			dmsetup mknodes sbd_${N}_${R[$N]}
+		else
+			D[$N]=${F[$N]}
+		fi
 	done
+	if [[ "${SBD_USE_DM}" != "yes" ]]; then
+		SBD_DEVICE="${F[1]};${F[2]};${F[3]}"
+	fi
+	SBD_PIDFILE=$(mktemp /tmp/sbd.pidfile.XXXXXX)
+	SBD_PRELOAD_LOG=$(mktemp /tmp/sbd.logfile.XXXXXX)
 }
 
 sbd_teardown() {
 	for N in $(seq 3) ; do
-		dmsetup remove sbd_${N}_${R[$N]}
-		losetup -d ${L[$N]}
+		if [[ "${SBD_USE_DM}" == "yes" ]]; then
+			dmsetup remove sbd_${N}_${R[$N]}
+			losetup -d ${L[$N]}
+		fi
 		rm -f ${F[$N]}
+		sbd_daemon_cleanup
+		rm -f ${SBD_PIDFILE}
+		rm -f ${SBD_PRELOAD_LOG}
 	done
 }
 
 sbd_dev_fail() {
-	dmsetup wipe_table sbd_${1}_${R[$1]}
+	if [[ "${SBD_USE_DM}" == "yes" ]]; then
+		dmsetup wipe_table sbd_${1}_${R[$1]}
+	else
+		D[$1]=/tmp/fail123456789
+	fi
 }
 
 sbd_dev_resume() {
-	dmsetup suspend sbd_${1}_${R[$1]}
-	dmsetup load sbd_${1}_${R[$1]} --table "0 2048 linear ${L[$1]} 0"
-	dmsetup resume sbd_${1}_${R[$1]}
+	if [[ "${SBD_USE_DM}" == "yes" ]]; then
+		dmsetup suspend sbd_${1}_${R[$1]}
+		dmsetup load sbd_${1}_${R[$1]} --table "0 2048 linear ${L[$1]} 0"
+		dmsetup resume sbd_${1}_${R[$1]}
+	else
+		D[$1]=${F[$1]}
+	fi
+}
+
+sbd_daemon_cleanup() {
+	echo > ${SBD_PRELOAD_LOG}
+	pkill -TERM --pidfile ${SBD_PIDFILE} 2>/dev/null
+	sleep 5
+	pkill -KILL --pidfile ${SBD_PIDFILE} 2>/dev/null
+	pkill -KILL --parent $(cat ${SBD_PIDFILE} 2>/dev/null) 2>/dev/null
+	echo > ${SBD_PIDFILE}
 }
 
 _ok() {
@@ -84,6 +121,16 @@ _no() {
 		exit $rc
 	fi
 	return 0
+}
+
+_in_log() {
+	grep "$@" ${SBD_PRELOAD_LOG} >/dev/null
+	if [ $? -ne 0 ]; then
+		echo "didn't find '$@' in log:"
+		cat ${SBD_PRELOAD_LOG}
+		sbd_daemon_cleanup
+		exit 1
+	fi
 }
 
 test_1() {
@@ -168,9 +215,112 @@ test_9() {
 	_ok sbd -h
 }
 
+test_watchdog() {
+	echo "Basic watchdog test"
+	echo > ${SBD_PRELOAD_LOG}
+	sbd test-watchdog < /dev/null
+	_in_log "watchdog fired"
+}
+
+test_stall_inquisitor() {
+	echo "Stall inquisitor test"
+	sbd_daemon_cleanup
+	sbd -d ${D[1]} -d ${D[2]} -d ${D[3]} -n test-1 watch
+	sleep 10
+	_ok kill -0 $(cat ${SBD_PIDFILE})
+	kill -STOP $(cat ${SBD_PIDFILE})
+	sleep 10
+	kill -CONT $(cat ${SBD_PIDFILE}) 2>/dev/null
+	_in_log "watchdog fired"
+}
+
+test_wipe_slots1() {
+	echo "Wipe slots test (with watchdog)"
+	sbd_daemon_cleanup
+	sbd -d ${D[1]} -n test-1 watch
+	sleep 2
+	sbd_wipe_disk ${D[1]}
+	sleep 15
+	_in_log "watchdog fired"
+}
+
+test_wipe_slots2() {
+	echo "Wipe slots test (without watchdog)"
+	sbd_daemon_cleanup
+	sbd -d ${D[1]} create
+	sbd -d ${D[1]} -w /dev/null -n test-1 watch
+	sleep 2
+	sbd_wipe_disk ${D[1]}
+	sleep 15
+	_in_log "sysrq-trigger ('b')"
+	_in_log "reboot (reboot)"
+}
+
+test_message1() {
+	echo "Message test (reset)"
+	sbd_daemon_cleanup
+	sbd -d ${D[1]} create
+	sbd -d ${D[1]} -w /dev/null -n test-1 watch
+	sleep 2
+	sbd -d ${D[1]} message test-1 reset
+	sleep 2
+	_in_log "sysrq-trigger ('b')"
+	_in_log "reboot (reboot)"
+}
+
+test_message2() {
+	echo "Message test (off)"
+	sbd_daemon_cleanup
+	sbd -d ${D[1]} create
+	sbd -d ${D[1]} -w /dev/null -n test-1 watch
+	sleep 2
+	sbd -d ${D[1]} message test-1 off
+	sleep 2
+	_in_log "sysrq-trigger ('o')"
+	_in_log "reboot (poweroff)"
+}
+
+test_message3() {
+	echo "Message test (crashdump)"
+	sbd_daemon_cleanup
+	sbd -d ${D[1]} create
+	sbd -d ${D[1]} -w /dev/null -n test-1 watch
+	sleep 2
+	sbd -d ${D[1]} message test-1 crashdump
+	sleep 2
+	_in_log "sysrq-trigger ('c')"
+}
+
+test_timeout_action1() {
+	echo "Timeout action test (off)"
+	sbd_daemon_cleanup
+	sbd -d ${D[1]} create
+	SBD_TIMEOUT_ACTION=off sbd -d ${D[1]} -w /dev/null -n test-1 watch
+	sleep 2
+	sbd_wipe_disk ${D[1]}
+	sleep 10
+	_in_log "sysrq-trigger ('o')"
+	_in_log "reboot (poweroff)"
+}
+
+test_timeout_action2() {
+	echo "Timeout action test (crashdump)"
+	sbd_daemon_cleanup
+	sbd -d ${D[1]} create
+	SBD_TIMEOUT_ACTION=crashdump sbd -d ${D[1]} -w /dev/null -n test-1 watch
+	sleep 2
+	sbd_wipe_disk ${D[1]}
+	sleep 10
+	_in_log "sysrq-trigger ('c')"
+}
+
 sbd_setup
 
-for T in $(seq 9); do
+if [[ "${SBD_PRELOAD}" != "" ]]; then
+	SBD_DAEMON_TESTS="watchdog stall_inquisitor wipe_slots1 wipe_slots2 message1 message2 message3 timeout_action1 timeout_action2"
+fi
+
+for T in $(seq 9) ${SBD_DAEMON_TESTS}; do
 	if ! test_$T ; then
 		echo "FAILURE: Test $T"
 		break
