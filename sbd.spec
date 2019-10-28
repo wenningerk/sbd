@@ -71,7 +71,7 @@ sed -i src/sbd.sysconfig -e "s/SBD_WATCHDOG_TIMEOUT=5/SBD_WATCHDOG_TIMEOUT=15/"
 ###########################################################
 
 %build
-autoreconf -i
+./autogen.sh
 export CFLAGS="$RPM_OPT_FLAGS -Wall -Werror"
 %configure
 make %{?_smp_mflags}
