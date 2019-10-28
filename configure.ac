@@ -66,6 +66,8 @@ CPPFLAGS="$CPPFLAGS $libxml_CFLAGS $libqb_CFLAGS $pacemaker_CFLAGS $pcmk_CFLAGS"
 LIBS="$LIBS $libxml_LIBS $libqb_LIBS $pacemaker_LIBS $pcmk_LIBS"
 
 dnl     checks for libraries
+AC_CHECK_LIB(c, dlopen)                         dnl if dlopen is in libc...
+AC_CHECK_LIB(dl, dlopen)                        dnl -ldl (for Linux)
 AC_CHECK_LIB(aio, io_setup, , missing="yes")
 AC_CHECK_LIB(qb, qb_ipcs_connection_auth_set, , missing="yes")
 AC_CHECK_LIB(cib, cib_new, , missing="yes")
@@ -126,6 +128,18 @@ AC_ARG_WITH(configdir,
        Directory for SBD configuration file [${CONFIGDIR}]],
     [ CONFIGDIR="$withval" ]
 )
+
+#
+# Where is dlopen?
+#
+if test "$ac_cv_lib_c_dlopen" = yes; then
+    LIBADD_DL=""
+elif test "$ac_cv_lib_dl_dlopen" = yes; then
+    LIBADD_DL=-ldl
+else
+    LIBADD_DL=${lt_cv_dlopen_libs}
+fi
+
 
 dnl **********************************************************************
 dnl Check for various argv[] replacing functions on various OSs
@@ -239,6 +253,8 @@ eval includedir="`eval echo ${includedir}`"
 eval oldincludedir="`eval echo ${oldincludedir}`"
 eval infodir="`eval echo ${infodir}`"
 eval mandir="`eval echo ${mandir}`"
+
+AC_SUBST(LIBADD_DL)        dnl extra flags for dynamic linking libraries
 
 if test x"${CONFIGDIR}" = x""; then
     CONFIGDIR="${sysconfdir}/sysconfig"
