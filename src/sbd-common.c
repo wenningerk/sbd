@@ -47,7 +47,7 @@ int		timeout_startup		= 120;
 
 int	watchdog_use		= 1;
 int	watchdog_set_timeout	= 1;
-unsigned long	timeout_watchdog_crashdump = 240;
+unsigned long	timeout_watchdog_crashdump = 0;
 int	skip_rt			= 0;
 int	debug			= 0;
 int	debug_mode		= 0;
@@ -89,7 +89,8 @@ usage(void)
 "-4 <N>		Set msgwait timeout to N seconds (optional, create only)\n"
 "-5 <N>		Warn if loop latency exceeds threshold (optional, watch only)\n"
 "			(default is 3, set to 0 to disable)\n"
-"-C <N>		Watchdog timeout to set before crashdumping (def: 240s, optional)\n"
+"-C <N>		Watchdog timeout to set before crashdumping\n"
+"			(def: 0s = disable gracefully, optional)\n"
 "-I <N>		Async IO read timeout (defaults to 3 * loop timeout, optional)\n"
 "-s <N>		Timeout to wait for devices to become available (def: 120s)\n"
 "-t <N>		Dampening delay before faulty servants are restarted (optional)\n"
@@ -930,10 +931,17 @@ do_exit(char kind, bool do_flush)
         sync();
     }
 
-    if(kind == 'c') {
-        watchdog_close(true);
+    if (kind == 'c') {
+        if (timeout_watchdog_crashdump) {
+            if (timeout_watchdog != timeout_watchdog_crashdump) {
+                timeout_watchdog = timeout_watchdog_crashdump;
+                watchdog_init_interval();
+            }
+            watchdog_close(false);
+        } else {
+            watchdog_close(true);
+        }
         sysrq_trigger(kind);
-
     } else {
         watchdog_close(false);
         sysrq_trigger(kind);
