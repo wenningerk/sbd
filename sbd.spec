@@ -64,6 +64,10 @@ This package contains the storage-based death functionality.
 ###########################################################
 # %setup -n sbd-%{version} -q
 %setup -q -n %{name}-%{commit}
+%ifarch s390x s390
+sed -i src/sbd.sysconfig -e "s/Default: 5/Default: 15/"
+sed -i src/sbd.sysconfig -e "s/SBD_WATCHDOG_TIMEOUT=5/SBD_WATCHDOG_TIMEOUT=15/"
+%endif
 ###########################################################
 
 %build
