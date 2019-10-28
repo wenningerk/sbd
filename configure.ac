@@ -31,7 +31,7 @@ AM_INIT_AUTOMAKE(1.11.1 foreign TESTS_OPTION)
 AM_PROG_CC_C_O
 
 PKG_CHECK_MODULES(glib, [glib-2.0])
-dnl PKG_CHECK_MODULES(libcoroipcc, [libcoroipcc])
+PKG_CHECK_MODULES(libxml, [libxml-2.0])
 
 PKG_CHECK_MODULES(cmap, [libcmap], HAVE_cmap=1, HAVE_cmap=0)
 PKG_CHECK_MODULES(votequorum, [libvotequorum], HAVE_votequorum=1, HAVE_votequorum=0)
@@ -41,9 +41,12 @@ PKG_CHECK_MODULES(pacemaker, [pacemaker, pacemaker-cib], HAVE_pacemaker=1, HAVE_
 
 dnl pacemaker <= 1.1.8
 PKG_CHECK_MODULES(pcmk, [pcmk, pcmk-cib], HAVE_pcmk=1, HAVE_pcmk=0)
+
 PKG_CHECK_MODULES(libqb, [libqb])
 
-CPPFLAGS="$CPPFLAGS -Werror"
+CPPFLAGS="$CPPFLAGS -Werror $glib_CFLAGS $libxml_CFLAGS"
+LIBS="$LIBS $glib_LIBS $libxml_LIBS"
+
 if test $HAVE_pacemaker = 0 -a $HAVE_pcmk = 0; then
     AC_MSG_ERROR(No package 'pacemaker' found)
 elif test $HAVE_pacemaker = 1; then
@@ -62,9 +65,8 @@ elif test $HAVE_pacemaker = 1; then
     fi
 fi
 
-PKG_CHECK_MODULES(libxml, [libxml-2.0])
-CPPFLAGS="$CPPFLAGS $libxml_CFLAGS $libqb_CFLAGS $pacemaker_CFLAGS $pcmk_CFLAGS"
-LIBS="$LIBS $libxml_LIBS $libqb_LIBS $pacemaker_LIBS $pcmk_LIBS"
+CPPFLAGS="$CPPFLAGS $libqb_CFLAGS $pacemaker_CFLAGS $pcmk_CFLAGS"
+LIBS="$LIBS $libqb_LIBS $pacemaker_LIBS $pcmk_LIBS"
 
 dnl     checks for libraries
 AC_CHECK_LIB(c, dlopen)                         dnl if dlopen is in libc...
