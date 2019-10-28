@@ -107,7 +107,7 @@ usage(void)
 "dump		Dump meta-data header from device.\n"
 "allocate <node>\n"
 "		Allocate a slot for node (optional)\n"
-"message <node> (test|reset|off|clear|exit)\n"
+"message <node> (test|reset|off|crashdump|clear|exit)\n"
 "		Writes the specified message to node's slot.\n"
 #endif
 "watch		Loop forever, monitoring own slot\n"
