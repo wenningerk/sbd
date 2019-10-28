@@ -35,7 +35,7 @@ BuildRequires:  automake
 BuildRequires:  libuuid-devel
 BuildRequires:  glib2-devel
 BuildRequires:  libaio-devel
-BuildRequires:  corosynclib-devel
+BuildRequires:  corosync-devel
 %if 0%{?suse_version}
 BuildRequires:  libpacemaker-devel
 %else
