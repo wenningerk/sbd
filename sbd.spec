@@ -35,7 +35,7 @@ BuildRequires:  automake
 BuildRequires:  libuuid-devel
 BuildRequires:  glib2-devel
 BuildRequires:  libaio-devel
-BuildRequires:  corosynclib-devel
+BuildRequires:  corosync-devel
 %if 0%{?suse_version}
 BuildRequires:  libpacemaker-devel
 %else
@@ -60,14 +60,27 @@ ExclusiveArch: i686 x86_64 s390x aarch64 ppc64le
 
 This package contains the storage-based death functionality.
 
+%package tests
+Summary:        Storage-based death environment for regression tests
+License:        GPLv2+
+Group:          System Environment/Daemons
+
+%description tests
+This package provides an environment + testscripts for
+regression-testing sbd.
+
 %prep
 ###########################################################
 # %setup -n sbd-%{version} -q
 %setup -q -n %{name}-%{commit}
+%ifarch s390x s390
+sed -i src/sbd.sysconfig -e "s/Default: 5/Default: 15/"
+sed -i src/sbd.sysconfig -e "s/SBD_WATCHDOG_TIMEOUT=5/SBD_WATCHDOG_TIMEOUT=15/"
+%endif
 ###########################################################
 
 %build
-autoreconf -i
+./autogen.sh
 export CFLAGS="$RPM_OPT_FLAGS -Wall -Werror"
 %configure
 make %{?_smp_mflags}
@@ -80,6 +93,7 @@ make DESTDIR=$RPM_BUILD_ROOT LIBDIR=%{_libdir} install
 rm -rf ${RPM_BUILD_ROOT}%{_libdir}/stonith
 
 install -D -m 0755 src/sbd.sh $RPM_BUILD_ROOT/usr/share/sbd/sbd.sh
+install -D -m 0755 tests/regressions.sh $RPM_BUILD_ROOT/usr/share/sbd/regressions.sh
 %if %{defined _unitdir}
 install -D -m 0644 src/sbd.service $RPM_BUILD_ROOT/%{_unitdir}/sbd.service
 install -D -m 0644 src/sbd_remote.service $RPM_BUILD_ROOT/%{_unitdir}/sbd_remote.service
@@ -87,6 +101,10 @@ install -D -m 0644 src/sbd_remote.service $RPM_BUILD_ROOT/%{_unitdir}/sbd_remote
 
 mkdir -p ${RPM_BUILD_ROOT}%{_sysconfdir}/sysconfig
 install -m 644 src/sbd.sysconfig ${RPM_BUILD_ROOT}%{_sysconfdir}/sysconfig/sbd
+
+# Don't package static libs
+find %{buildroot} -name '*.a' -type f -print0 | xargs -0 rm -f
+find %{buildroot} -name '*.la' -type f -print0 | xargs -0 rm -f
 
 %clean
 rm -rf %{buildroot}
@@ -111,12 +129,19 @@ rm -rf %{buildroot}
 %config(noreplace) %{_sysconfdir}/sysconfig/sbd
 %{_sbindir}/sbd
 %{_datadir}/sbd
+%exclude %{_datadir}/sbd/regressions.sh
 %doc %{_mandir}/man8/sbd*
 %if %{defined _unitdir}
 %{_unitdir}/sbd.service
 %{_unitdir}/sbd_remote.service
 %endif
 %doc COPYING
+
+%files tests
+%defattr(-,root,root)
+%dir %{_datadir}/sbd
+%{_datadir}/sbd/regressions.sh
+%{_libdir}/libsbdtestbed*
 
 %changelog
 * Mon Jan 14 2019 <klaus.wenninger@aon.at> - 1.4.0-0.1.2d595fdd.git

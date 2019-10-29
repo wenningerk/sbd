@@ -1,4 +1,4 @@
-SUBDIRS = src agent man
+SUBDIRS = src agent man tests
 
 # .gz because github doesn't support .xz yet :-(
 # this is modified
@@ -28,6 +28,9 @@ COUNT           = $(shell expr 1 + $(LAST_COUNT))
 
 TESTS           = tests/regressions.sh
 export SBD_BINARY := src/sbd
+export SBD_PRELOAD := tests/.libs/libsbdtestbed.so
+export SBD_USE_DM := no
+
 EXTRA_DIST      = sbd.spec tests/regressions.sh
 
 export:

@@ -331,7 +331,7 @@ fencing agent's parameter -, SBD will adjust the watchdog timeout to this
 setting before triggering the dump. Otherwise, the watchdog might trigger and
 prevent a successful crashdump from ever being written.
 
-Defaults to 240 seconds. Set to zero to disable.
+Set to zero (= default) to disable.
 
 =item B<-r> I<N>
 
