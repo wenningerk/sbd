@@ -6,6 +6,8 @@ configure
 *.list
 depcomp
 install-sh
+libtool
+ltmain.sh*
 Makefile
 Makefile.in
 missing
