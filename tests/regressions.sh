@@ -298,7 +298,7 @@ test_timeout_action1() {
 	SBD_TIMEOUT_ACTION=off sbd -d ${D[1]} -w /dev/null -n test-1 watch
 	sleep 2
 	sbd_wipe_disk ${D[1]}
-	sleep 10
+	sleep 15
 	_in_log "sysrq-trigger ('o')"
 	_in_log "reboot (poweroff)"
 }
@@ -310,7 +310,7 @@ test_timeout_action2() {
 	SBD_TIMEOUT_ACTION=crashdump sbd -d ${D[1]} -w /dev/null -n test-1 watch
 	sleep 2
 	sbd_wipe_disk ${D[1]}
-	sleep 10
+	sleep 15
 	_in_log "sysrq-trigger ('c')"
 }
 
