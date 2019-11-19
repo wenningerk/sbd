@@ -15,7 +15,7 @@
 
 # Please submit bugfixes or comments via http://bugs.opensuse.org/
 #
-%global commit 5705703da3db01bb4c34fd73ae33f24b43a16b78-mod
+%global commit aca7907c1973f331a4f192a0d50e6443840daab6
 %global shortcommit %(echo %{commit}|cut -c1-8)
 %global modified %(echo %{commit}-|cut -f2 -d-)
 %global github_owner beekhof
@@ -25,7 +25,7 @@ Name:           sbd
 Summary:        Storage-based death
 License:        GPLv2+
 Group:          System Environment/Daemons
-Version:        1.4.0
+Version:        1.4.1
 Release:        99.%{buildnum}.%{shortcommit}.%{modified}git%{?dist}
 Url:            https://github.com/%{github_owner}/%{name}
 Source0:        https://github.com/%{github_owner}/%{name}/archive/%{commit}/%{name}-%{commit}.tar.gz
@@ -144,6 +144,34 @@ rm -rf %{buildroot}
 %{_libdir}/libsbdtestbed*
 
 %changelog
+* Tue Nov 19 2019 <klaus.wenninger@aon.at> - 1.4.1-99.1.aca7907c.git
+- improvements/clarifications in documentation
+- properly finalize cmap connection when disconnected from cluster
+- make handling of cib-connection loss more robust
+- silence some coverity findings
+- overhaul log for reasonable prios and details
+- if current slice doesn't have rt-budget move to root-slice
+- periodically ping corosync daemon for liveness
+- actually use crashdump timeout if configured
+- avoid deprecated names for g_main-loop-funcitons
+- conflict with fence-agents-sbd < 4.5.0
+- rather require corosync-devel provided by most distributions
+- make devices on cmdline overrule those coming via SBD_DEVICE
+- make 15s timeout on s390 be used consistently
+- improve build/test for CI-friendlyness
+-   * add autogen.sh
+-   * enable/improve out-of-tree-building
+-   * make tar generation smarter
+-   * don't modify sbd.spec
+-   * make distcheck-target work
+-   * Add tests/regressions.sh to check-target
+-   * use unique devmapper names for multiple tests in parallel
+-   * consistently use serial test-harness for visible progress
+-   * package tests into separate package (not packaged before)
+-   * add preload-library to intercept reboots while testing
+-   * add tests for sbd in daemon-mode & watchdog-dev-handling
+-   * make tests work in non-privileged containers
+
 * Mon Jan 14 2019 <klaus.wenninger@aon.at> - 1.4.0-0.1.2d595fdd.git
 - updated travis-CI (ppc64le-build, fedora29, remove need for
   alectolytic-build-container)
