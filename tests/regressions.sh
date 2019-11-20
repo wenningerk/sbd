@@ -32,7 +32,7 @@
 : ${SBD_USE_DM:="yes"}
 
 sbd() {
-	LD_PRELOAD=${SBD_PRELOAD} SBD_WATCHDOG_TIMEOUT=5 SBD_DEVICE="${SBD_DEVICE}" SBD_PRELOAD_LOG=${SBD_PRELOAD_LOG} SBD_WATCHDOG_DEV=/dev/watchdog setsid ${SBD_BINARY} -p ${SBD_PIDFILE} $*
+	LD_PRELOAD=${SBD_PRELOAD} SBD_WATCHDOG_TIMEOUT=5 SBD_DEVICE="${SBD_DEVICE}" SBD_PRELOAD_LOG=${SBD_PRELOAD_LOG} SBD_WATCHDOG_DEV=/dev/watchdog setsid ${SBD_BINARY} -p ${SBD_PIDFILE} "$@"
 }
 
 sbd_wipe_disk() {
@@ -98,26 +98,26 @@ sbd_daemon_cleanup() {
 	pkill -TERM --pidfile ${SBD_PIDFILE} 2>/dev/null
 	sleep 5
 	pkill -KILL --pidfile ${SBD_PIDFILE} 2>/dev/null
-	pkill -KILL --parent $(cat ${SBD_PIDFILE} 2>/dev/null) 2>/dev/null
+	pkill -KILL --parent "$(cat ${SBD_PIDFILE} 2>/dev/null)" 2>/dev/null
 	echo > ${SBD_PIDFILE}
 }
 
 _ok() {
-	echo -- $@
-	$@
+	echo "-- $*"
+	"$@"
 	rc=$?
 	if [ $rc -ne 0 ]; then
-		echo "$@ failed with $rc"
+		echo "$* failed with $rc"
 		exit $rc
 	fi
 }
 
 _no() {
-	echo -- $@
-	$@
+	echo "-- $*"
+	"$@"
 	rc=$?
 	if [ $rc -eq 0 ]; then
-		echo "$@ did NOT fail ($rc)"
+		echo "$* did NOT fail ($rc)"
 		exit $rc
 	fi
 	return 0
@@ -126,7 +126,7 @@ _no() {
 _in_log() {
 	grep "$@" ${SBD_PRELOAD_LOG} >/dev/null
 	if [ $? -ne 0 ]; then
-		echo "didn't find '$@' in log:"
+		echo "didn't find '$*' in log:"
 		cat ${SBD_PRELOAD_LOG}
 		sbd_daemon_cleanup
 		exit 1
@@ -227,10 +227,10 @@ test_stall_inquisitor() {
 	sbd_daemon_cleanup
 	sbd -d ${D[1]} -d ${D[2]} -d ${D[3]} -n test-1 watch
 	sleep 10
-	_ok kill -0 $(cat ${SBD_PIDFILE})
-	kill -STOP $(cat ${SBD_PIDFILE})
+	_ok kill -0 "$(cat ${SBD_PIDFILE})"
+	kill -STOP "$(cat ${SBD_PIDFILE})"
 	sleep 10
-	kill -CONT $(cat ${SBD_PIDFILE}) 2>/dev/null
+	kill -CONT "$(cat ${SBD_PIDFILE})" 2>/dev/null
 	_in_log "watchdog fired"
 }
 
