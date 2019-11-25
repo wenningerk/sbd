@@ -18,8 +18,8 @@ env:
         # and the docker-image isn't there for anything else but x86_64
         # - BUILD_OS_TYPE="centos:" BUILD_OS_DIST=centos BUILD_OS_VERSION=8
         # - BUILD_OS_PREPARE="yum install -y https://dl.fedoraproject.org/pub/epel/epel-release-latest-8.noarch.rpm && yum install -y mock yum-utils &&"
-        - BUILD_OS_TYPE="fedora:" BUILD_OS_DIST= BUILD_OS_VERSION=30
-        - BUILD_OS_PREPARE="dnf install -y mock dnf-utils findutils patch &&"
+        - BUILD_OS_TYPE="fedora:" BUILD_OS_DIST= BUILD_OS_VERSION=31
+        - BUILD_OS_PREPARE="echo timeout=300 >> /etc/dnf/dnf.conf && dnf install -y mock dnf-utils findutils patch &&"
 
 matrix:
     exclude:
@@ -34,15 +34,15 @@ matrix:
         - arch: amd64
           env: OS_ARCH=x86_64 OS_TYPE="centos:" OS_MOCK=epel OS_DIST=centos OS_VERSION=6 OS_INSTALL="yum install -y" DOCKER_OPTS="--privileged" TEST_ENV="SBD_USE_DM=yes"
         - arch: amd64
-          env: OS_ARCH=x86_64 OS_TYPE="fedora:" OS_MOCK=fedora OS_DIST= OS_VERSION=30 OS_INSTALL="dnf install -y" DOCKER_OPTS="--privileged" TEST_ENV="SBD_USE_DM=yes"
+          env: OS_ARCH=x86_64 OS_TYPE="fedora:" OS_MOCK=fedora OS_DIST= OS_VERSION=31 OS_INSTALL="dnf install -y" DOCKER_OPTS="--privileged" TEST_ENV="SBD_USE_DM=yes"
         - arch: amd64
           env: OS_ARCH=x86_64 OS_TYPE="fedora:" OS_MOCK=fedora OS_DIST= OS_VERSION=rawhide OS_INSTALL="dnf install -y" DOCKER_OPTS="--privileged" TEST_ENV="SBD_USE_DM=yes"
         - arch: ppc64le
-          env: OS_ARCH=ppc64le OS_TYPE="fedora:" OS_MOCK=fedora OS_DIST= OS_VERSION=30 OS_INSTALL="dnf install -y" DOCKER_OPTS="--cap-add=sys_admin" TEST_ENV="SBD_USE_DM=no" MOCK_OPTS="--config-opts=internal_dev_setup=False"
+          env: OS_ARCH=ppc64le OS_TYPE="fedora:" OS_MOCK=fedora OS_DIST= OS_VERSION=31 OS_INSTALL="dnf install --setopt=timeout=300 -y" DOCKER_OPTS="--cap-add=sys_admin" TEST_ENV="SBD_USE_DM=no" MOCK_OPTS="--config-opts=internal_dev_setup=False"
         - arch: s390x
-          env: OS_ARCH=s390x OS_TYPE="fedora:" OS_MOCK=fedora OS_DIST= OS_VERSION=30 OS_INSTALL="dnf install -y" DOCKER_OPTS="--cap-add=sys_admin" TEST_ENV="SBD_USE_DM=no" MOCK_OPTS="--config-opts=internal_dev_setup=False"
+          env: OS_ARCH=s390x OS_TYPE="fedora:" OS_MOCK=fedora OS_DIST= OS_VERSION=31 OS_INSTALL="dnf install -y" DOCKER_OPTS="--cap-add=sys_admin" TEST_ENV="SBD_USE_DM=no" MOCK_OPTS="--config-opts=internal_dev_setup=False"
         - arch: arm64
-          env: OS_ARCH=aarch64 OS_TYPE="fedora:" OS_MOCK=fedora OS_DIST= OS_VERSION=30 OS_INSTALL="dnf install -y" DOCKER_OPTS="--cap-add=sys_admin" TEST_ENV="SBD_USE_DM=no" MOCK_OPTS="--config-opts=internal_dev_setup=False"
+          env: OS_ARCH=aarch64 OS_TYPE="fedora:" OS_MOCK=fedora OS_DIST= OS_VERSION=31 OS_INSTALL="dnf install -y" DOCKER_OPTS="--cap-add=sys_admin" TEST_ENV="SBD_USE_DM=no" MOCK_OPTS="--config-opts=internal_dev_setup=False"
         - arch: amd64
           env: OS_ARCH=x86_64 OS_TYPE="opensuse/" OS_MOCK=opensuse-leap OS_DIST="leap:" OS_VERSION=15.1 OS_INSTALL="zypper --no-gpg-checks --non-interactive install" DOCKER_OPTS="--privileged" TEST_ENV="SBD_USE_DM=yes"
         - arch: amd64
@@ -57,7 +57,7 @@ script:
   - BUILD_SUCCESS=false
   - make -f Makefile.am srpm PACKAGE=${PACKAGE}
   - docker pull ${BUILD_OS_TYPE}${BUILD_OS_DIST}${BUILD_OS_VERSION}
-  - docker run --cap-add=sys_admin -v ${PWD}:/rpms -v /proc:/var/lib/mock/${OS_MOCK}-${OS_VERSION}-${OS_ARCH}/root/proc -v ${PWD}:/rpms -v /sys:/var/lib/mock/${OS_MOCK}-${OS_VERSION}-${OS_ARCH}/root/sys ${BUILD_OS_TYPE}${BUILD_OS_DIST}${BUILD_OS_VERSION} /bin/bash -c "${BUILD_OS_PREPARE} if test $OS_VERSION = rawhide; then sed -i /etc/mock/${OS_MOCK}-${OS_VERSION}-${OS_ARCH}.cfg -e s/gpgcheck.*/gpgcheck=0/g; fi && rpm -ql mock|grep "/mounts.py\$"|xargs -n1 sed -e "/USE_NSPAWN/d" -e "/self.mountall_essential/d" -i && mock --no-clean -r ${OS_MOCK}-${OS_VERSION}-${OS_ARCH} --resultdir=/rpms ${MOCK_OPTS} --disable-plugin=root_cache --disable-plugin=tmpfs --disable-plugin=yum_cache --disable-plugin=selinux --no-bootstrap-chroot --old-chroot /rpms/sbd*.src.rpm"
+  - docker run --cap-add=sys_admin -v ${PWD}:/rpms -v /proc:/var/lib/mock/${OS_MOCK}-${OS_VERSION}-${OS_ARCH}/root/proc -v ${PWD}:/rpms -v /sys:/var/lib/mock/${OS_MOCK}-${OS_VERSION}-${OS_ARCH}/root/sys ${BUILD_OS_TYPE}${BUILD_OS_DIST}${BUILD_OS_VERSION} /bin/bash -c "${BUILD_OS_PREPARE} if test $OS_VERSION = rawhide; then sed -i /etc/mock/${OS_MOCK}-${OS_VERSION}-${OS_ARCH}.cfg -e s/gpgcheck.*/gpgcheck=0/g; fi && rpm -ql mock|grep "/mounts.py\$"|xargs -n1 sed -e "/USE_NSPAWN/d" -e "/self.mountall_essential/d" -i && mkdir -p /var/lib/mock/${OS_MOCK}-${OS_VERSION}-${OS_ARCH}/root/etc/dnf && cp /etc/dnf/dnf.conf /var/lib/mock/${OS_MOCK}-${OS_VERSION}-${OS_ARCH}/root/etc/dnf && mock --no-clean -r ${OS_MOCK}-${OS_VERSION}-${OS_ARCH} --resultdir=/rpms ${MOCK_OPTS} --disable-plugin=root_cache --disable-plugin=tmpfs --disable-plugin=yum_cache --disable-plugin=selinux --no-bootstrap-chroot --old-chroot /rpms/sbd*.src.rpm"
   - ls ${PWD}/${PACKAGE}*.${OS_ARCH}.rpm && BUILD_SUCCESS=true
   - ${BUILD_SUCCESS} && docker pull ${OS_TYPE}${OS_DIST}${OS_VERSION}
   - ${BUILD_SUCCESS} && docker run ${DOCKER_OPTS} -v ${PWD}:/rpms ${OS_TYPE}${OS_DIST}${OS_VERSION} /bin/bash -c "if test $OS_VERSION = rawhide; then dnf update -y --nogpgcheck; fi && ${OS_INSTALL} device-mapper /rpms/${PACKAGE}*.${OS_ARCH}.rpm && ${TEST_ENV} /usr/share/sbd/regressions.sh && touch /rpms/regressions.sh.SUCCESS"
