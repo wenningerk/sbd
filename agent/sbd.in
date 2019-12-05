@@ -45,7 +45,7 @@ sbd_validate_timeout() {
 	esac
 	crm_timeout=$[$(crm_attribute -t crm_config -G -n stonith-timeout -d 20s -q | sed -e 's/\(.*\)s/\1/' -e 's/\(.*\)m/\1*60/')]
 	sbd_timeout=$(sbd -d $sbd_device dump | perl -ne 'if (/msgwait.*: (\d+)/) { print "$1\n"; }' | head -n 1)
-	if [ "$sbd_timeout" -eq "0" ]; then
+	if [ -z "$sbd_timeout" -o "$sbd_timeout" = "0" ]; then
 		return
 	fi
 
