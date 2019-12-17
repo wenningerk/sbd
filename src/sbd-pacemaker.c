@@ -83,97 +83,40 @@ pe_free_working_set(pe_working_set_t *data_set)
 
 #endif
 
-static void
-clean_up(int rc);
+static void clean_up(int rc);
 
-#ifdef XML_PING_ATTR_PACEMAKERDSTATE
+#if USE_PACEMAKERD_API
+#include <crm/common/pacemakerd_types.h>
 static char *admin_uuid = NULL;
-static crm_ipc_t *pacemakerd_channel = NULL;
+static pacemakerd_t *pacemakerd_api = NULL;
 time_t last_ok = (time_t) 0;
-
-static int
-pacemakerd_msg_callback(const char *buffer, ssize_t length, gpointer userdata);
-static void
-pacemakerd_ipc_connection_destroy(gpointer user_data);
-
-static struct ipc_client_callbacks pacemakerd_callbacks = {
-    .dispatch = pacemakerd_msg_callback,
-    .destroy = pacemakerd_ipc_connection_destroy
-};
 
 static void
 ping_pacemakerd(void)
 {
-    if (pacemakerd_channel) {
-        xmlNode *cmd = create_request(CRM_OP_PING, NULL, NULL,
-                                      CRM_SYSTEM_MCP, crm_system_name,
-                                      admin_uuid);
-
-        crm_ipc_send(pacemakerd_channel, cmd, 0, 0, NULL);
-        free_xml(cmd);
-    }
-}
-
-static int
-pacemakerd_msg_callback(const char *buffer, ssize_t length, gpointer userdata)
-{
-    const char *type = NULL;
-    const char *crm_msg_reference = NULL;
-    xmlNode *xml = string2xml(buffer);
-
-    if (xml == NULL) {
-        return 0;
-    }
-
-    type = crm_element_value(xml, F_CRM_MSG_TYPE);
-    crm_msg_reference = crm_element_value(xml, XML_ATTR_REFERENCE);
-
-    if (type == NULL) {
-        crm_info("No message type defined.");
-    } else if (strcasecmp(XML_ATTR_RESPONSE, type) != 0) {
-        crm_info("Expecting a (%s) message but received a (%s).",
-                 XML_ATTR_RESPONSE, type);
-    } else if (crm_msg_reference == NULL) {
-        crm_info("No message crm_msg_reference defined.");
-    } else {
-        xmlNode *data = get_message_xml(xml, F_CRM_DATA);
-        const char *state =
-            crm_element_value(data, XML_PING_ATTR_PACEMAKERDSTATE);
-        const char *status =
-            crm_element_value(data, XML_PING_ATTR_STATUS);
-        time_t pinged = (time_t) 0;
-        long long value_ll = 0;
-
-        crm_element_value_ll(data, XML_ATTR_TSTAMP, &value_ll);
-        pinged = (time_t) value_ll;
-        if ((pinged != (time_t) 0) && (state != NULL) &&
-           (status != NULL) && (!strcasecmp(status, "ok"))) {
-            if (!strcasecmp(state, XML_PING_ATTR_PACEMAKERDSTATE_RUNNING)) {
-                last_ok = pinged;
-            } else if (!strcasecmp(state,
-                                  XML_PING_ATTR_PACEMAKERDSTATE_SHUTDOWNCOMPLETE)) {
-                clean_up(EXIT_PCMK_SERVANT_GRACEFUL_SHUTDOWN);
-            }
-        }
-    }
-
-    free_xml(xml);
-    return 0;
+    pacemakerd_api->cmds->ping(pacemakerd_api,
+                    crm_system_name, admin_uuid, 0);
 }
 
 static void
-pacemakerd_ipc_connection_destroy(gpointer user_data)
+ping_callback(pacemakerd_t *pacemakerd,
+               time_t last_good,
+               enum pacemakerd_state state,
+               int rc, gpointer userdata)
 {
-    pacemakerd_channel = NULL;
-}
-
-static crm_ipc_t *
-pacemakerd_connect()
-{
-    mainloop_io_t *source =
-        mainloop_add_ipc_client(CRM_SYSTEM_MCP, G_PRIORITY_DEFAULT, 0,
-                                NULL, &pacemakerd_callbacks);
-    return mainloop_get_ipc_client(source);
+    if ((last_good != (time_t) 0) && (rc == pcmk_ok)) {
+        switch (state) {
+            case pacemakerd_state_running:
+            case pacemakerd_state_shutting_down:
+                last_ok = last_good;
+                break;
+            case pacemakerd_state_shutdown_complete:
+                clean_up(EXIT_PCMK_SERVANT_GRACEFUL_SHUTDOWN);
+                break;
+            default:
+                break;
+        }
+    }
 }
 #endif
 
@@ -227,7 +170,8 @@ mon_cib_connection_destroy(gpointer user_data)
 		cib->cmds->signoff(cib);
 		/* retrigger as last one might have been skipped */
 		mon_refresh_state(NULL);
-#if 0
+
+#if !USE_PACEMAKERD_API
 		if (pcmk_clean_shutdown) {
 			/* assume a graceful pacemaker-shutdown */
 			clean_up(EXIT_PCMK_SERVANT_GRACEFUL_SHUTDOWN);
@@ -292,7 +236,7 @@ mon_timer_notify(gpointer data)
 		g_source_remove(timer_id_notify);
 	}
 
-#ifdef XML_PING_ATTR_PACEMAKERDSTATE
+#if USE_PACEMAKERD_API
     {
         time_t now = time(NULL);
 
@@ -311,14 +255,10 @@ mon_timer_notify(gpointer data)
 		}
 	}
 
-#ifdef XML_PING_ATTR_PACEMAKERDSTATE
+#if USE_PACEMAKERD_API
 		}
-    }
-    admin_uuid = crm_strdup_printf("%lu", (unsigned long) getpid());
-    if (pacemakerd_channel == NULL) {
-        pacemakerd_channel = pacemakerd_connect();
-    }
-    ping_pacemakerd();
+	}
+	ping_pacemakerd();
 #endif
 
 	timer_id_notify = g_timeout_add(timeout_loop * 1000, mon_timer_notify, NULL);
@@ -631,6 +571,13 @@ clean_up(int rc)
 		cib = NULL;
 	}
 
+#if USE_PACEMAKERD_API
+	if (pacemakerd_api != NULL) {
+		pacemakerd_api->cmds->free(pacemakerd_api);
+		pacemakerd_api = NULL;
+	}
+#endif
+
 	if (rc >= 0) {
 		exit(rc);
 	}
@@ -640,11 +587,11 @@ clean_up(int rc)
 int
 servant_pcmk(const char *diskname, int mode, const void* argp)
 {
-	int exit_code = 0;
+    int exit_code = 0;
 
-        crm_system_name = strdup("sbd:pcmk");
-	cl_log(LOG_NOTICE, "Monitoring Pacemaker health");
-	set_proc_title("sbd: watcher: Pacemaker");
+    crm_system_name = strdup("sbd:pcmk");
+    cl_log(LOG_NOTICE, "Monitoring Pacemaker health");
+    set_proc_title("sbd: watcher: Pacemaker");
         setenv("PCMK_watchdog", "true", 1);
 
         if(debug == 0) {
@@ -653,24 +600,28 @@ servant_pcmk(const char *diskname, int mode, const void* argp)
         }
 
 
-	if (data_set == NULL) {
-		data_set = pe_new_working_set();
-	}
-	if (data_set == NULL) {
-		return -1;
-	}
+    if (data_set == NULL) {
+        data_set = pe_new_working_set();
+    }
+    if (data_set == NULL) {
+        return -1;
+    }
 
-#ifdef XML_PING_ATTR_PACEMAKERDSTATE
+#if USE_PACEMAKERD_API
     admin_uuid = crm_strdup_printf("%lu", (unsigned long) getpid());
-    if (pacemakerd_channel == NULL) {
-        do {
-            pacemakerd_channel = pacemakerd_connect();
-            if (pacemakerd_channel == NULL) {
+    pacemakerd_api = pacemakerd_api_new();
+    if (pacemakerd_api == NULL) {
+        return -1;
+    }
+    pacemakerd_api->cmds->set_ping_callback(pacemakerd_api,
+                    ping_callback, NULL);
+    do {
+        pacemakerd_api->cmds->connect(pacemakerd_api, crm_system_name);
+            if (pacemakerd_api->conn_state == pacemakerd_conn_disconnected) {
                 sleep(reconnect_msec / 1000);
             }
-        } while (pacemakerd_channel == NULL);
-    }
-	/* send a ping to pacemakerd to wake it up */
+    } while (pacemakerd_api->conn_state == pacemakerd_conn_disconnected);
+    /* send a ping to pacemakerd to wake it up */
     ping_pacemakerd();
     /* cib should come up now as well so it's time
      * to have the inquisitor have a closer look
