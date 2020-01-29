@@ -9,8 +9,8 @@ TARFILE		 = $(distdir).tar.gz
 DIST_ARCHIVES	 = $(TARFILE)
 KEEP_EXISTING_TAR = no
 INJECT_GIT_COMMIT = yes
-DISTCLEANFILES   = sbd-* sbd-*/
 CLEANFILES       = *.rpm *.tar.* sbd-*
+DISTCLEANFILES   = sbd-* sbd-*/
 
 RPM_ROOT	= $(shell pwd)
 RPM_OPTS	= --define "_sourcedir $(RPM_ROOT)" 	\
@@ -31,7 +31,7 @@ export SBD_BINARY := src/sbd
 export SBD_PRELOAD := tests/.libs/libsbdtestbed.so
 export SBD_USE_DM := no
 
-EXTRA_DIST      = sbd.spec tests/regressions.sh
+EXTRA_DIST      = sbd.spec tests/regressions.sh man/sbd.8.pod.in
 
 export:
 	rm -f $(PACKAGE)-HEAD.tar.*
@@ -43,7 +43,7 @@ export:
 	    echo `date`: Using existing tarball: $(TARFILE);			\
 	else									\
 	    rm -f $(PACKAGE).tar.*;                                             \
-	    (git archive --prefix=$(distdir)/ $(shell echo $(TAG)|cut -f1 -d-) || tar -c --transform="s,^,$(distdir)/," --exclude="*.tar.*" --exclude="$(distdir)" --exclude="*.o" --exclude="*.8" --exclude="config.*" --exclude="libtool" --exclusive="ltmain.sh*" --exclude="Makefile" --exclude="Makefile.in" --exclude="stamp-*" --exclude="*.service" --exclude="sbd" --exclude="*.m4" --exclude="*.cache" --exclude="configure" --exclude="*.list" --exclude="depcomp" --exclude="install-sh" --exclude="missing" --exclude="compile" --exclude="sbd.sh" --exclude="~" --exclude="*.swp" --exclude="*.patch" --exclude="*.diff" --exclude="*.orig" --exclude="*.rej" --exclude="*.rpm" --exclude=".deps" --exclude="test-driver" *) | gzip > $(TARFILE);	\
+	    (git archive --prefix=$(distdir)/ $(shell echo $(TAG)|cut -f1 -d-) || tar -c --transform="s,^,$(distdir)/," --exclude="*.tar.*" --exclude="$(distdir)" --exclude="*.o" --exclude="*.8" --exclude="config.*" --exclude="libtool" --exclude="ltmain.sh*" --exclude="Makefile" --exclude="Makefile.in" --exclude="stamp-*" --exclude="*.service" --exclude="sbd" --exclude="*.m4" --exclude="*.cache" --exclude="configure" --exclude="*.list" --exclude="depcomp" --exclude="install-sh" --exclude="missing" --exclude="compile" --exclude="sbd.sh" --exclude="~" --exclude="*.swp" --exclude="*.patch" --exclude="*.diff" --exclude="*.orig" --exclude="*.rej" --exclude="*.rpm" --exclude="*.pod" --exclude=".deps" --exclude="test-driver" *) | gzip > $(TARFILE);	\
 	    if test -n "$$(git status -s)" || test "$(INJECT_GIT_COMMIT)" = "yes"; then \
 		if test -n "$$(git status -s)"; then git diff HEAD --name-only|grep -v "^\."|xargs -n1 git diff HEAD > uncommitted.diff; fi; \
 		rm -rf $(distdir); tar -xzf $(TARFILE); rm $(TARFILE); \

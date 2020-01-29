@@ -24,6 +24,7 @@ sbd.sh
 *.orig
 *.rej
 *.rpm
+*.pod
 *.tar.*
 !.copr/Makefile
 sbd-*/
