@@ -14,7 +14,7 @@
 #
 SBD_PACEMAKER=yes
 
-## Type: list(always,clean)
+## Type: always / clean
 ## Default: always
 #
 # Specify the start mode for sbd. Setting this to "clean" will only
@@ -103,6 +103,7 @@ SBD_TIMEOUT_ACTION=flush,reboot
 # Thus in auto-mode sbd will check if the slice has RT-budget assigned.
 # If that is the case sbd will stay in that slice while it will
 # be moved to root-slice otherwise.
+#
 SBD_MOVE_TO_ROOT_CGROUP=auto
 
 ## Type: string

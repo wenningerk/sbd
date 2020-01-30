@@ -568,9 +568,16 @@ options to pass to the daemon:
 	SBD_PACEMAKER="true"
 
 C<sbd> will fail to start if no C<SBD_DEVICE> is specified. See the
-installed template for more options that can be configured here.
+installed template or section for configuration via environment
+for more options that can be configured here.
 In general configuration done via parameters takes precedence over
 the configuration from the configuration file.
+
+=head2 Configuration via environment
+
+=over
+@environment_section@
+=back
 
 =head2 Testing the sbd installation
 
