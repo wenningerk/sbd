@@ -26,6 +26,9 @@
 #include <pwd.h>
 #include <unistd.h>
 #include <dirent.h>
+#include <sys/time.h>
+#include <sys/resource.h>
+#include <limits.h>
 
 #ifdef _POSIX_MEMLOCK
 #  include <sys/mman.h>
@@ -298,7 +301,7 @@ watchdog_populate_list(void)
 				FILE *file;
 
 				snprintf(entry_name, sizeof(entry_name),
-				         SYS_CLASS_WATCHDOG "/%s/dev", entry->d_name);
+						 SYS_CLASS_WATCHDOG "/%s/dev", entry->d_name);
 				file = fopen(entry_name, "r");
 				if (file) {
 					int major, minor;
@@ -667,7 +670,7 @@ static int get_realtime_budget(void)
 {
     FILE *f;
     char fname[PATH_MAX];
-    int res = -1, lnum = 0;
+    int res = -1, lnum = 0, num;
     char *cgroup = NULL, *namespecs = NULL;
 
     snprintf(fname, PATH_MAX, "/proc/%jd/cgroup", (intmax_t)getpid());
@@ -677,7 +680,8 @@ static int get_realtime_budget(void)
                             (intmax_t)getpid());
         goto exit_res;
     }
-    while( fscanf(f, "%d:%m[^:]:%m[^\n]", &lnum,  &namespecs, &cgroup) !=EOF ) {
+    while( (num = fscanf(f, "%d:%m[^:]:%m[^\n]\n", &lnum,
+                         &namespecs, &cgroup)) !=EOF ) {
         if (namespecs && strstr(namespecs, "cpuacct")) {
             free(namespecs);
             break;
@@ -689,6 +693,11 @@ static int get_realtime_budget(void)
         if (namespecs) {
             free(namespecs);
             namespecs = NULL;
+        }
+        /* not to get stuck if format changes */
+        if ((num < 3) && ((fscanf(f, "%*[^\n]") == EOF) ||
+            (fscanf(f, "\n") == EOF))) {
+            break;
         }
     }
     fclose(f);
@@ -776,15 +785,17 @@ sbd_make_realtime(int priority, int stackgrowK, int heapgrowK)
         return;
     }
 
+do {
 #ifdef SCHED_RR
     if (move_to_root_cgroup) {
         sbd_move_to_root_cgroup(enforce_moving_to_root_cgroup);
     }
 
     {
-        int pcurrent = 0;
         int pmin = sched_get_priority_min(SCHED_RR);
         int pmax = sched_get_priority_max(SCHED_RR);
+        struct sched_param sp;
+        int pcurrent;
 
         if (priority == 0) {
             priority = pmax;
@@ -794,26 +805,47 @@ sbd_make_realtime(int priority, int stackgrowK, int heapgrowK)
             priority = pmax;
         }
 
-        pcurrent = sched_getscheduler(0);
-        if (pcurrent < 0) {
+        if (sched_getparam(0, &sp) < 0) {
             cl_perror("Unable to get scheduler priority");
 
-        } else if(pcurrent < priority) {
-            struct sched_param sp;
+        } else if ((pcurrent = sched_getscheduler(0)) < 0) {
+            cl_perror("Unable to get scheduler policy");
 
+        } else if ((pcurrent == SCHED_RR) &&
+                   (sp.sched_priority >= priority)) {
+                cl_log(LOG_INFO,
+                       "Stay with priority (%d) for policy SCHED_RR",
+                       sp.sched_priority);
+                break;
+        } else {
             memset(&sp, 0, sizeof(sp));
             sp.sched_priority = priority;
 
             if (sched_setscheduler(0, SCHED_RR, &sp) < 0) {
-                cl_perror("Unable to set scheduler priority to %d", priority);
+                cl_perror(
+                    "Unable to set scheduler policy to SCHED_RR priority %d",
+                    priority);
             } else {
-                cl_log(LOG_INFO, "Scheduler priority is now %d", priority);
+                cl_log(LOG_INFO,
+                       "Scheduler policy is now SCHED_RR priority %d",
+                       priority);
+                break;
             }
         }
     }
 #else
-    cl_log(LOG_ERR, "System does not support updating the scheduler priority");
+    cl_log(LOG_ERR, "System does not support updating the scheduler policy");
 #endif
+#ifdef PRIO_PGRP
+    if (setpriority(PRIO_PGRP, 0, INT_MIN) < 0) {
+        cl_perror("Unable to raise the scheduler priority");
+    } else {
+        cl_log(LOG_INFO, "Scheduler priority raised to the maximum");
+	}
+#else
+    cl_perror("System does not support setting the scheduler priority");
+#endif
+} while (0);
 
     sbd_memlock(heapgrowK, stackgrowK);
 }
@@ -826,7 +858,7 @@ maximize_priority(void)
 		return;
 	}
 
-        sbd_make_realtime(0, 256, 256);
+	sbd_make_realtime(0, 256, 256);
 
 	if (ioprio_set(IOPRIO_WHO_PROCESS, getpid(),
 			IOPRIO_PRIO_VALUE(IOPRIO_CLASS_RT, 1)) != 0) {
