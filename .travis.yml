@@ -18,7 +18,7 @@ env:
         # and the docker-image isn't there for anything else but x86_64
         # - BUILD_OS_TYPE="centos:" BUILD_OS_DIST=centos BUILD_OS_VERSION=8
         # - BUILD_OS_PREPARE="yum install -y https://dl.fedoraproject.org/pub/epel/epel-release-latest-8.noarch.rpm && yum install -y mock yum-utils &&"
-        - BUILD_OS_TYPE="fedora:" BUILD_OS_DIST= BUILD_OS_VERSION=31
+        - BUILD_OS_TYPE="fedora:" BUILD_OS_DIST= BUILD_OS_VERSION=32
         - BUILD_OS_PREPARE="echo timeout=300 >> /etc/dnf/dnf.conf && dnf install -y mock dnf-utils findutils patch &&"
 
 matrix:
@@ -34,17 +34,17 @@ matrix:
         - arch: amd64
           env: OS_ARCH=x86_64 OS_TYPE="centos:" OS_MOCK=epel OS_DIST=centos OS_VERSION=6 OS_INSTALL="yum install -y" DOCKER_OPTS="--privileged" TEST_ENV="SBD_USE_DM=yes"
         - arch: amd64
-          env: OS_ARCH=x86_64 OS_TYPE="fedora:" OS_MOCK=fedora OS_DIST= OS_VERSION=31 OS_INSTALL="dnf install -y" DOCKER_OPTS="--privileged" TEST_ENV="SBD_USE_DM=yes"
+          env: OS_ARCH=x86_64 OS_TYPE="fedora:" OS_MOCK=fedora OS_DIST= OS_VERSION=32 OS_INSTALL="dnf install -y" DOCKER_OPTS="--privileged" TEST_ENV="SBD_USE_DM=yes"
         - arch: amd64
           env: OS_ARCH=x86_64 OS_TYPE="fedora:" OS_MOCK=fedora OS_DIST= OS_VERSION=rawhide OS_INSTALL="dnf install -y" DOCKER_OPTS="--privileged" TEST_ENV="SBD_USE_DM=yes"
         - arch: ppc64le
-          env: OS_ARCH=ppc64le OS_TYPE="fedora:" OS_MOCK=fedora OS_DIST= OS_VERSION=31 OS_INSTALL="dnf install --setopt=timeout=300 -y" DOCKER_OPTS="--cap-add=sys_admin" TEST_ENV="SBD_USE_DM=no" MOCK_OPTS="--config-opts=internal_dev_setup=False"
+          env: OS_ARCH=ppc64le OS_TYPE="fedora:" OS_MOCK=fedora OS_DIST= OS_VERSION=32 OS_INSTALL="dnf install --setopt=timeout=300 -y" DOCKER_OPTS="--cap-add=sys_admin" TEST_ENV="SBD_USE_DM=no" MOCK_OPTS="--config-opts=internal_dev_setup=False"
         - arch: s390x
-          env: OS_ARCH=s390x OS_TYPE="fedora:" OS_MOCK=fedora OS_DIST= OS_VERSION=31 OS_INSTALL="dnf install -y" DOCKER_OPTS="--cap-add=sys_admin" TEST_ENV="SBD_USE_DM=no" MOCK_OPTS="--config-opts=internal_dev_setup=False"
+          env: OS_ARCH=s390x OS_TYPE="fedora:" OS_MOCK=fedora OS_DIST= OS_VERSION=32 OS_INSTALL="dnf install -y" DOCKER_OPTS="--cap-add=sys_admin" TEST_ENV="SBD_USE_DM=no" MOCK_OPTS="--config-opts=internal_dev_setup=False"
         - arch: arm64
-          env: OS_ARCH=aarch64 OS_TYPE="fedora:" OS_MOCK=fedora OS_DIST= OS_VERSION=31 OS_INSTALL="dnf install -y" DOCKER_OPTS="--cap-add=sys_admin" TEST_ENV="SBD_USE_DM=no" MOCK_OPTS="--config-opts=internal_dev_setup=False"
+          env: OS_ARCH=aarch64 OS_TYPE="fedora:" OS_MOCK=fedora OS_DIST= OS_VERSION=32 OS_INSTALL="dnf install -y" DOCKER_OPTS="--cap-add=sys_admin" TEST_ENV="SBD_USE_DM=no" MOCK_OPTS="--config-opts=internal_dev_setup=False"
         - arch: amd64
-          env: OS_ARCH=x86_64 OS_TYPE="opensuse/" OS_MOCK=opensuse-leap OS_DIST="leap:" OS_VERSION=15.0 OS_INSTALL="zypper --no-gpg-checks --non-interactive install" DOCKER_OPTS="--privileged" TEST_ENV="SBD_USE_DM=yes"
+          env: OS_ARCH=x86_64 OS_TYPE="opensuse/" OS_MOCK=opensuse-leap OS_DIST="leap:" OS_VERSION=15.2 OS_INSTALL="zypper --no-gpg-checks --non-interactive install" DOCKER_OPTS="--privileged" TEST_ENV="SBD_USE_DM=yes"
         - arch: amd64
           env: OS_ARCH=x86_64 OS_TYPE="opensuse/" OS_MOCK=opensuse OS_DIST= OS_VERSION=tumbleweed OS_INSTALL="zypper --no-gpg-checks --non-interactive install" DOCKER_OPTS="--privileged" TEST_ENV="SBD_USE_DM=yes"
 
