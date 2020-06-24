@@ -321,13 +321,22 @@ compute_status(pe_working_set_t * data_set)
             case no_quorum_freeze:
                 set_servant_health(pcmk_health_transient, LOG_INFO, "Quorum lost: Freeze resources");
                 break;
+#if HAVE_ENUM_NO_QUORUM_DEMOTE
+            case no_quorum_demote:
+                set_servant_health(pcmk_health_transient, LOG_INFO,
+                    "Quorum lost: Demote promotable resources and stop others");
+                break;
+#endif
             case no_quorum_stop:
                 set_servant_health(pcmk_health_transient, LOG_INFO, "Quorum lost: Stop ALL resources");
                 break;
             case no_quorum_ignore:
                 set_servant_health(pcmk_health_transient, LOG_INFO, "Quorum lost: Ignore");
                 break;
-            case no_quorum_suicide:
+            default:
+                /* immediate reboot is the most excessive action we take
+                   use for no_quorum_suicide and everything we don't know yet
+                 */
                 set_servant_health(pcmk_health_unclean, LOG_INFO, "Quorum lost: Self-fence");
                 break;
         }

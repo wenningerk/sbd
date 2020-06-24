@@ -89,7 +89,22 @@ AC_CHECK_LIB(cib, cib_apply_patch_event, , missing="yes")
 
 dnl pacemaker-2.0 removed support for corosync 1 cluster layer
 AC_CHECK_DECLS([pcmk_cluster_classic_ais, pcmk_cluster_cman],,,
-	       [#include <pacemaker/crm/cluster.h>])
+               [#include <pacemaker/crm/cluster.h>])
+
+dnl check for additional no-quorum-policies
+dnl AC_TEST_NO_QUORUM_POLICY(POLICY)
+AC_DEFUN([AC_TEST_NO_QUORUM_POLICY],[
+    AC_MSG_CHECKING([whether enum pe_quorum_policy defines value $1])
+    AC_LANG_PUSH([C])
+    AC_COMPILE_IFELSE([AC_LANG_PROGRAM(
+        [#include <pacemaker/crm/pengine/pe_types.h>],
+        [enum pe_quorum_policy policy = $1; return policy;])],
+            AC_DEFINE_UNQUOTED(m4_toupper(HAVE_ENUM_$1), 1,
+            [Does pe_types.h have $1 value in enum pe_quorum_policy?])
+            AC_MSG_RESULT([yes]), AC_MSG_RESULT([no]))
+    AC_LANG_POP([C])
+])
+AC_TEST_NO_QUORUM_POLICY(no_quorum_demote)
 
 dnl check for new pe-API
 AC_CHECK_FUNCS(pe_new_working_set)
