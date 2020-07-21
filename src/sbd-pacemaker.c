@@ -190,12 +190,12 @@ mon_cib_connection_destroy(gpointer user_data)
 		/* retrigger as last one might have been skipped */
 		mon_refresh_state(NULL);
 
-#if !USE_PACEMAKERD_API
-		if (pcmk_clean_shutdown) {
+
+		if ((pcmk_clean_shutdown) && (!sync_resource_startup)) {
 			/* assume a graceful pacemaker-shutdown */
 			clean_up(EXIT_PCMK_SERVANT_GRACEFUL_SHUTDOWN);
 		}
-#endif
+
 		/* getting here we aren't sure about the pacemaker-state
 		   so try to use the timeout to reconnect and get
 		   everything sorted out again

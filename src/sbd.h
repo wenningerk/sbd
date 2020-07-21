@@ -161,6 +161,7 @@ extern bool do_flush;
 extern char timeout_sysrq_char;
 extern bool move_to_root_cgroup;
 extern bool enforce_moving_to_root_cgroup;
+extern bool sync_resource_startup;
 
 /* Global, non-tunable variables: */
 extern int  sector_size;

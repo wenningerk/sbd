@@ -106,6 +106,20 @@ SBD_TIMEOUT_ACTION=flush,reboot
 #
 SBD_MOVE_TO_ROOT_CGROUP=auto
 
+## Type: yesno
+## Default: no
+#
+# If resource startup syncing is enabled then pacemakerd is
+# gonna wait to be pinged via IPC before it starts resources.
+# On shutdown pacemakerd is going to wait in a state where it
+# has cleanly shutdown resources till sbd fetches that state.
+#
+# Default is 'no' to prevent pacemaker from waiting for a
+# ping that will never come when working together with an sbd
+# version that doesn't support the feature.
+#
+SBD_SYNC_RESOURCE_STARTUP=no
+
 ## Type: string
 ## Default: ""
 #
