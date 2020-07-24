@@ -33,7 +33,7 @@
 #include <crm/cluster.h>
 #include <crm/common/mainloop.h>
 
-#if CHECK_TWO_NODE
+#if CHECK_TWO_NODE || CHECK_QDEVICE_SYNC_TIMEOUT
 #include <glib-unix.h>
 #endif
 
@@ -86,11 +86,20 @@ sbd_plugin_membership_dispatch(cpg_handle_t handle,
 static votequorum_handle_t votequorum_handle = 0;
 #endif
 
+#if CHECK_TWO_NODE
 static bool two_node = false;
+#endif
 static bool ever_seen_both = false;
 static int cpg_membership_entries = -1;
 
-#if CHECK_TWO_NODE
+#if CHECK_QDEVICE_SYNC_TIMEOUT
+#include <corosync/votequorum.h>
+static bool using_qdevice = false;
+static uint32_t qdevice_sync_timeout = /* in seconds */
+    VOTEQUORUM_QDEVICE_DEFAULT_SYNC_TIMEOUT / 1000;
+#endif
+
+#if CHECK_TWO_NODE || CHECK_QDEVICE_SYNC_TIMEOUT
 #include <corosync/cmap.h>
 
 static cmap_handle_t cmap_handle = 0;
@@ -102,28 +111,59 @@ void
 sbd_cpg_membership_health_update()
 {
     if(cpg_membership_entries > 0) {
-        bool quorum_is_suspect =
+#if CHECK_TWO_NODE
+        bool quorum_is_suspect_two_node =
             (two_node && ever_seen_both && cpg_membership_entries == 1);
+#endif
+#if CHECK_QDEVICE_SYNC_TIMEOUT
+        bool quorum_is_suspect_qdevice_timing =
+            using_qdevice && (qdevice_sync_timeout > timeout_watchdog);
+#endif
 
-        if (!quorum_is_suspect) {
+        do {
+#if CHECK_TWO_NODE
+            if (quorum_is_suspect_two_node) {
+               /* Alternative would be asking votequorum for number of votes.
+                * Using pacemaker's cpg as source for number of active nodes
+                * avoids binding to an additional library, is definitely
+                * less code to write and we wouldn't have to combine data
+                * from 3 sources (cmap, cpg & votequorum) in a potentially
+                * racy environment.
+                */
+                set_servant_health(pcmk_health_noquorum, LOG_WARNING,
+                    "Connected to %s but requires both nodes present",
+                    name_for_cluster_type(get_cluster_type())
+                    );
+                break;
+            }
+#endif
+#if CHECK_QDEVICE_SYNC_TIMEOUT
+            if (quorum_is_suspect_qdevice_timing) {
+               /* We can't really trust quorum info as qdevice-sync_timeout
+                * makes reaction of quorum too sluggish for our
+                * watchdog-timeout.
+                */
+                set_servant_health(pcmk_health_noquorum, LOG_WARNING,
+                    "Connected to %s but quorum using qdevice is distrusted "
+                    "for SBD as qdevice-sync_timeout (%ds) > watchdog-timeout "
+                    "(%lus).",
+                    name_for_cluster_type(get_cluster_type()),
+                    qdevice_sync_timeout, timeout_watchdog
+                    );
+                break;
+            }
+#endif
             set_servant_health(pcmk_health_online, LOG_INFO,
-                           "Connected to %s (%u members)",
-                           name_for_cluster_type(get_cluster_type()),
-                           cpg_membership_entries
-                          );
-        } else {
-            /* Alternative would be asking votequorum for number of votes.
-             * Using pacemaker's cpg as source for number of active nodes
-             * avoids binding to an additional library, is definitely
-             * less code to write and we wouldn't have to combine data
-             * from 3 sources (cmap, cpq & votequorum) in a potentially
-             * racy environment.
-             */
-            set_servant_health(pcmk_health_noquorum, LOG_WARNING,
-                           "Connected to %s but requires both nodes present",
-                           name_for_cluster_type(get_cluster_type())
-                          );
-        }
+                "Connected to %s (%u members)%s",
+                name_for_cluster_type(get_cluster_type()),
+                cpg_membership_entries,
+#if CHECK_QDEVICE_SYNC_TIMEOUT
+                using_qdevice?" using qdevice for quorum":""
+#else
+                ""
+#endif
+            );
+        } while (false);
 
         if (cpg_membership_entries > 1) {
             ever_seen_both = true;
@@ -146,7 +186,7 @@ sbd_cpg_membership_dispatch(cpg_handle_t handle,
     notify_parent();
 }
 
-#if CHECK_TWO_NODE
+#if CHECK_TWO_NODE || CHECK_QDEVICE_SYNC_TIMEOUT
 static void sbd_cmap_notify_fn(
     cmap_handle_t cmap_handle,
     cmap_track_handle_t cmap_track_handle,
@@ -156,21 +196,99 @@ static void sbd_cmap_notify_fn(
     struct cmap_notify_value old_val,
     void *user_data)
 {
-    if (new_val.type == CMAP_VALUETYPE_UINT8) {
-        switch (event) {
-            case CMAP_TRACK_ADD:
-            case CMAP_TRACK_MODIFY:
-                two_node = *((uint8_t *) new_val.data);
-                break;
-            case CMAP_TRACK_DELETE:
-                two_node = false;
-                break;
-            default:
-                return;
-        }
-        sbd_cpg_membership_health_update();
-        notify_parent();
+    switch (event) {
+        case CMAP_TRACK_ADD:
+        case CMAP_TRACK_MODIFY:
+            switch (new_val.type) {
+                case CMAP_VALUETYPE_UINT8:
+#if CHECK_TWO_NODE
+                    if (!strcmp(key_name, "quorum.two_node")) {
+                        two_node = *((uint8_t *) new_val.data);
+                    } else {
+                        return;
+                    }
+                    break;
+#else
+                    return;
+#endif
+                case CMAP_VALUETYPE_STRING:
+#if CHECK_QDEVICE_SYNC_TIMEOUT
+                    if (!strcmp(key_name, "quorum.device.model")) {
+                        using_qdevice =
+                            ((new_val.data) && strlen((char *) new_val.data));
+                    } else {
+                        return;
+                    }
+                    break;
+#else
+                    return;
+#endif
+                case CMAP_VALUETYPE_UINT32:
+#if CHECK_QDEVICE_SYNC_TIMEOUT
+                    if (!strcmp(key_name, "quorum.device.sync_timeout")) {
+                        if (new_val.data) {
+                            qdevice_sync_timeout =
+                                *((uint32_t *) new_val.data) / 1000;
+                        } else {
+                            qdevice_sync_timeout =
+                                VOTEQUORUM_QDEVICE_DEFAULT_SYNC_TIMEOUT / 1000;
+                        }
+                    } else {
+                        return;
+                    }
+                    break;
+#else
+                    return;
+#endif
+                default:
+                    return;
+            }
+            break;
+        case CMAP_TRACK_DELETE:
+            switch (new_val.type) {
+                case CMAP_VALUETYPE_UINT8:
+#if CHECK_TWO_NODE
+                    if (!strcmp(key_name, "quorum.two_node")) {
+                        two_node = false;
+                    } else {
+                        return;
+                    }
+                    break;
+#else
+                    return;
+#endif
+                case CMAP_VALUETYPE_STRING:
+#if CHECK_QDEVICE_SYNC_TIMEOUT
+                    if (!strcmp(key_name, "quorum.device.model")) {
+                        using_qdevice = false;
+                    } else {
+                        return;
+                    }
+                    break;
+#else
+                    return;
+#endif
+                case CMAP_VALUETYPE_UINT32:
+#if CHECK_QDEVICE_SYNC_TIMEOUT
+                    if (!strcmp(key_name, "quorum.device.sync_timeout")) {
+                        qdevice_sync_timeout =
+                            VOTEQUORUM_QDEVICE_DEFAULT_SYNC_TIMEOUT / 1000;
+                    } else {
+                        return;
+                    }
+                    break;
+#else
+                    return;
+#endif
+                default:
+                    return;
+            }
+            break;
+        default:
+            return;
     }
+    sbd_cpg_membership_health_update();
+    notify_parent();
 }
 
 static gboolean
@@ -200,9 +318,14 @@ cmap_destroy(void)
 }
 
 static gboolean
-sbd_get_two_node(void)
+verify_against_cmap_config(void)
 {
+#if CHECK_TWO_NODE
     uint8_t two_node_u8 = 0;
+#endif
+#if CHECK_QDEVICE_SYNC_TIMEOUT
+    char *qdevice_model = NULL;
+#endif
     int cmap_fd;
 
     if (!track_handle) {
@@ -211,12 +334,31 @@ sbd_get_two_node(void)
             goto out;
         }
 
+#if CHECK_TWO_NODE
         if (cmap_track_add(cmap_handle, "quorum.two_node",
                             CMAP_TRACK_DELETE|CMAP_TRACK_MODIFY|CMAP_TRACK_ADD,
                             sbd_cmap_notify_fn, NULL, &track_handle) != CS_OK) {
             cl_log(LOG_WARNING, "Failed adding CMAP tracker for 2Node-mode\n");
             goto out;
         }
+#endif
+
+#if CHECK_QDEVICE_SYNC_TIMEOUT
+        if (cmap_track_add(cmap_handle, "quorum.device.model",
+                            CMAP_TRACK_DELETE|CMAP_TRACK_MODIFY|CMAP_TRACK_ADD,
+                            sbd_cmap_notify_fn, NULL, &track_handle) != CS_OK) {
+            cl_log(LOG_WARNING, "Failed adding CMAP tracker for qdevice-model\n");
+            goto out;
+        }
+
+        if (cmap_track_add(cmap_handle, "quorum.device.sync_timeout",
+                            CMAP_TRACK_DELETE|CMAP_TRACK_MODIFY|CMAP_TRACK_ADD,
+                            sbd_cmap_notify_fn, NULL, &track_handle) != CS_OK) {
+            cl_log(LOG_WARNING,
+                   "Failed adding CMAP tracker for qdevice-sync_timeout\n");
+            goto out;
+        }
+#endif
 
         /* add the tracker to mainloop */
         if (cmap_fd_get(cmap_handle, &cmap_fd) != CS_OK) {
@@ -232,13 +374,39 @@ sbd_get_two_node(void)
         g_source_attach(cmap_source, NULL);
     }
 
-    if (cmap_get_uint8(cmap_handle, "quorum.two_node", &two_node_u8) == CS_OK) {
+#if CHECK_TWO_NODE
+    if (cmap_get_uint8(cmap_handle, "quorum.two_node", &two_node_u8)
+            == CS_OK) {
         cl_log(two_node_u8? LOG_NOTICE : LOG_INFO,
                "Corosync is%s in 2Node-mode", two_node_u8?"":" not");
         two_node = two_node_u8;
     } else {
         cl_log(LOG_INFO, "quorum.two_node not present in cmap\n");
     }
+#endif
+
+#if CHECK_QDEVICE_SYNC_TIMEOUT
+    if (cmap_get_string(cmap_handle, "quorum.device.model",
+                        &qdevice_model) == CS_OK) {
+        using_qdevice = qdevice_model && strlen(qdevice_model);
+        cl_log(using_qdevice? LOG_NOTICE : LOG_INFO,
+               "Corosync is%s using qdevice", using_qdevice?"":" not");
+    } else {
+        cl_log(LOG_INFO, "quorum.device.model not present in cmap\n");
+    }
+
+    if (cmap_get_uint32(cmap_handle, "quorum.device.sync_timeout",
+                        &qdevice_sync_timeout) == CS_OK) {
+        qdevice_sync_timeout /= 1000;
+        cl_log(LOG_INFO,
+               "Corosync is using qdevice-sync_timeout=%ds",
+               qdevice_sync_timeout);
+    } else {
+        cl_log(LOG_INFO,
+               "quorum.device.sync_timeout not present in cmap\n");
+    }
+#endif
+
     return TRUE;
 
 out:
@@ -331,15 +499,15 @@ sbd_membership_connect(void)
         } else {
             cl_log(LOG_INFO, "Attempting connection to %s", name_for_cluster_type(stack));
 
-#if SUPPORT_COROSYNC && CHECK_TWO_NODE
-            if (sbd_get_two_node()) {
+#if SUPPORT_COROSYNC && (CHECK_TWO_NODE || CHECK_QDEVICE_SYNC_TIMEOUT)
+            if (verify_against_cmap_config()) {
 #endif
 
                 if(crm_cluster_connect(&cluster)) {
                     connected = true;
                 }
 
-#if SUPPORT_COROSYNC && CHECK_TWO_NODE
+#if SUPPORT_COROSYNC && (CHECK_TWO_NODE || CHECK_QDEVICE_SYNC_TIMEOUT)
             }
 #endif
         }
@@ -362,7 +530,7 @@ sbd_membership_destroy(gpointer user_data)
     cl_log(LOG_WARNING, "Lost connection to %s", name_for_cluster_type(get_cluster_type()));
 
     if (get_cluster_type() != pcmk_cluster_unknown) {
-#if SUPPORT_COROSYNC && CHECK_TWO_NODE
+#if SUPPORT_COROSYNC && (CHECK_TWO_NODE || CHECK_QDEVICE_SYNC_TIMEOUT)
         cmap_destroy();
 #endif
     }

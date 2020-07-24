@@ -109,6 +109,12 @@ AC_TEST_NO_QUORUM_POLICY(no_quorum_demote)
 dnl check for new pe-API
 AC_CHECK_FUNCS(pe_new_working_set)
 
+dnl check if votequorum comes with default for qdevice-sync_timeout
+AC_CHECK_DECLS([VOTEQUORUM_QDEVICE_DEFAULT_SYNC_TIMEOUT],
+               HAVE_DECL_VOTEQUORUM_QDEVICE_DEFAULT_SYNC_TIMEOUT=1,
+               HAVE_DECL_VOTEQUORUM_QDEVICE_DEFAULT_SYNC_TIMEOUT=0,
+               [#include <corosync/votequorum.h>])
+
 if test "$missing" = "yes"; then
    AC_MSG_ERROR([Missing required libraries or functions.])
 fi
@@ -139,6 +145,13 @@ AM_CONDITIONAL(CHECK_TWO_NODE, test "$HAVE_cmap" = "1")
 
 AC_DEFINE_UNQUOTED(CHECK_VOTEQUORUM_HANDLE, $HAVE_votequorum, Turn on periodic checking of votequorum-handle)
 AM_CONDITIONAL(CHECK_VOTEQUORUM_HANDLE, test "$HAVE_votequorum" = "1")
+
+AC_DEFINE_UNQUOTED(CHECK_QDEVICE_SYNC_TIMEOUT,
+                   ($HAVE_DECL_VOTEQUORUM_QDEVICE_DEFAULT_SYNC_TIMEOUT && $HAVE_cmap),
+                   Turn on checking if watchdog-timeout and qdevice-sync_timeout are matching)
+AM_CONDITIONAL(CHECK_QDEVICE_SYNC_TIMEOUT,
+               test "$HAVE_DECL_VOTEQUORUM_QDEVICE_DEFAULT_SYNC_TIMEOUT" = "1" &&
+               test "$HAVE_cmap" = "1")
 
 CONFIGDIR=""
 AC_ARG_WITH(configdir,
