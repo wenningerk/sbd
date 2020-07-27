@@ -81,6 +81,7 @@ AC_CHECK_LIB(crmcluster, crm_peer_init, , missing="yes")
 AC_CHECK_LIB(uuid, uuid_unparse, , missing="yes")
 AC_CHECK_LIB(cmap, cmap_initialize, , HAVE_cmap=0)
 AC_CHECK_LIB(votequorum, votequorum_getinfo, , HAVE_votequorum=0)
+AC_CHECK_LIB(crmcommon, pcmk_pacemakerd_api_ping, HAVE_pacemakerd_api=1, HAVE_pacemakerd_api=0)
 
 dnl pacemaker >= 1.1.8
 AC_CHECK_HEADERS(crm/cluster.h)
@@ -152,6 +153,9 @@ AC_DEFINE_UNQUOTED(CHECK_QDEVICE_SYNC_TIMEOUT,
 AM_CONDITIONAL(CHECK_QDEVICE_SYNC_TIMEOUT,
                test "$HAVE_DECL_VOTEQUORUM_QDEVICE_DEFAULT_SYNC_TIMEOUT" = "1" &&
                test "$HAVE_cmap" = "1")
+
+AC_DEFINE_UNQUOTED(USE_PACEMAKERD_API, $HAVE_pacemakerd_api, Turn on synchronization between sbd & pacemakerd)
+AM_CONDITIONAL(USE_PACEMAKERD_API, test "$HAVE_pacemakerd_api" = "1")
 
 CONFIGDIR=""
 AC_ARG_WITH(configdir,

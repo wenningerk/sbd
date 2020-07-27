@@ -83,6 +83,62 @@ pe_free_working_set(pe_working_set_t *data_set)
 
 #endif
 
+static void clean_up(int rc);
+
+#if USE_PACEMAKERD_API
+#include <crm/common/ipc_pacemakerd.h>
+
+static pcmk_ipc_api_t *pacemakerd_api = NULL;
+static time_t last_ok = (time_t) 0;
+
+static void
+pacemakerd_event_cb(pcmk_ipc_api_t *pacemakerd_api,
+                    enum pcmk_ipc_event event_type, crm_exit_t status,
+                    void *event_data, void *user_data)
+{
+    pcmk_pacemakerd_api_reply_t *reply = event_data;
+
+    switch (event_type) {
+        case pcmk_ipc_event_disconnect:
+            /* Unexpected */
+            cl_log(LOG_ERR, "Lost connection to pacemakerd\n");
+            return;
+
+        case pcmk_ipc_event_reply:
+            break;
+
+        default:
+            return;
+    }
+
+    if (status != CRM_EX_OK) {
+        cl_log(LOG_ERR, "Bad reply from pacemakerd: %s",
+                crm_exit_str(status));
+        return;
+    }
+
+    if (reply->reply_type != pcmk_pacemakerd_reply_ping) {
+        cl_log(LOG_ERR, "Unknown reply type %d from pacemakerd\n",
+                reply->reply_type);
+    } else {
+        if ((reply->data.ping.last_good != (time_t) 0) &&
+            (reply->data.ping.status == pcmk_rc_ok)) {
+            switch (reply->data.ping.state) {
+                case pcmk_pacemakerd_state_running:
+                case pcmk_pacemakerd_state_shutting_down:
+                    last_ok = reply->data.ping.last_good;
+                    break;
+                case pcmk_pacemakerd_state_shutdown_complete:
+                    clean_up(EXIT_PCMK_SERVANT_GRACEFUL_SHUTDOWN);
+                    break;
+                default:
+                    break;
+           }
+        }
+    }
+}
+#endif
+
 extern int disk_count;
 
 static void clean_up(int rc);
@@ -133,10 +189,13 @@ mon_cib_connection_destroy(gpointer user_data)
 		cib->cmds->signoff(cib);
 		/* retrigger as last one might have been skipped */
 		mon_refresh_state(NULL);
-		if (pcmk_clean_shutdown) {
+
+
+		if ((pcmk_clean_shutdown) && (!sync_resource_startup)) {
 			/* assume a graceful pacemaker-shutdown */
 			clean_up(EXIT_PCMK_SERVANT_GRACEFUL_SHUTDOWN);
 		}
+
 		/* getting here we aren't sure about the pacemaker-state
 		   so try to use the timeout to reconnect and get
 		   everything sorted out again
@@ -196,6 +255,13 @@ mon_timer_notify(gpointer data)
 		g_source_remove(timer_id_notify);
 	}
 
+#if USE_PACEMAKERD_API
+	{
+		time_t now = time(NULL);
+
+		if ((last_ok <= now) && (now - last_ok < timeout_watchdog)) {
+#endif
+
 	if (cib_connected) {
 		if (counter == counter_max) {
 			mon_retrieve_current_cib();
@@ -207,6 +273,16 @@ mon_timer_notify(gpointer data)
 			counter++;
 		}
 	}
+
+#if USE_PACEMAKERD_API
+		}
+	}
+	if (pcmk_connect_ipc(pacemakerd_api,
+			pcmk_ipc_dispatch_main) == pcmk_rc_ok) {
+		pcmk_pacemakerd_api_ping(pacemakerd_api, crm_system_name);
+	}
+#endif
+
 	timer_id_notify = g_timeout_add(timeout_loop * 1000, mon_timer_notify, NULL);
 	return FALSE;
 }
@@ -526,6 +602,14 @@ clean_up(int rc)
 		cib = NULL;
 	}
 
+#if USE_PACEMAKERD_API
+	if (pacemakerd_api != NULL) {
+		pcmk_ipc_api_t *capi = pacemakerd_api;
+		pacemakerd_api = NULL; // Ensure we can't free this twice
+		pcmk_free_ipc_api(capi);
+	}
+#endif
+
 	if (rc >= 0) {
 		exit(rc);
 	}
@@ -535,11 +619,11 @@ clean_up(int rc)
 int
 servant_pcmk(const char *diskname, int mode, const void* argp)
 {
-	int exit_code = 0;
+    int exit_code = 0;
 
-        crm_system_name = strdup("sbd:pcmk");
-	cl_log(LOG_NOTICE, "Monitoring Pacemaker health");
-	set_proc_title("sbd: watcher: Pacemaker");
+    crm_system_name = strdup("sbd:pcmk");
+    cl_log(LOG_NOTICE, "Monitoring Pacemaker health");
+    set_proc_title("sbd: watcher: Pacemaker");
         setenv("PCMK_watchdog", "true", 1);
 
         if(debug == 0) {
@@ -548,12 +632,40 @@ servant_pcmk(const char *diskname, int mode, const void* argp)
         }
 
 
-	if (data_set == NULL) {
-		data_set = pe_new_working_set();
-	}
-	if (data_set == NULL) {
-		return -1;
-	}
+    if (data_set == NULL) {
+        data_set = pe_new_working_set();
+    }
+    if (data_set == NULL) {
+        return -1;
+    }
+
+#if USE_PACEMAKERD_API
+    {
+    int rc;
+
+        rc = pcmk_new_ipc_api(&pacemakerd_api, pcmk_ipc_pacemakerd);
+        if (pacemakerd_api == NULL) {
+            cl_log(LOG_ERR, "Could not connect to pacemakerd: %s\n",
+                    pcmk_rc_str(rc));
+            return -1;
+        }
+        pcmk_register_ipc_callback(pacemakerd_api, pacemakerd_event_cb, NULL);
+        do {
+            rc = pcmk_connect_ipc(pacemakerd_api, pcmk_ipc_dispatch_main);
+            if (rc != pcmk_rc_ok) {
+                cl_log(LOG_DEBUG, "Could not connect to pacemakerd: %s\n",
+                    pcmk_rc_str(rc));
+                sleep(reconnect_msec / 1000);
+            }
+        } while (rc != pcmk_rc_ok);
+        /* send a ping to pacemakerd to wake it up */
+        pcmk_pacemakerd_api_ping(pacemakerd_api, crm_system_name);
+        /* cib should come up now as well so it's time
+         * to have the inquisitor have a closer look
+        */
+        notify_parent();
+    }
+#endif
 
 	if (current_cib == NULL) {
 		cib = cib_new();
