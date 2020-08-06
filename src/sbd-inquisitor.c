@@ -38,14 +38,15 @@ bool enforce_moving_to_root_cgroup = false;
 
 int parse_device_line(const char *line);
 
-void recruit_servant(const char *devname, pid_t pid)
+static int
+recruit_servant(const char *devname, pid_t pid)
 {
 	struct servants_list_item *s = servants_leader;
 	struct servants_list_item *newbie;
 
 	if (lookup_servant_by_dev(devname)) {
 	    cl_log(LOG_DEBUG, "Servant %s already exists", devname);
-	    return;
+	    return 0;
 	}
 
 	newbie = malloc(sizeof(*newbie));
@@ -72,7 +73,7 @@ void recruit_servant(const char *devname, pid_t pid)
 	    cl_log(LOG_ERR, "Refusing to recruit unrecognized servant %s", devname);
 	    free((void *) newbie->devname);
 	    free(newbie);
-	    return;
+	    return -1;
 	}
 
 	if (!s) {
@@ -84,6 +85,8 @@ void recruit_servant(const char *devname, pid_t pid)
 	}
 
 	servant_count++;
+
+	return 0;
 }
 
 int assign_servant(const char* devname, functionp_t functionp, int mode, const void* argp)
@@ -823,7 +826,11 @@ parse_device_line(const char *line)
             } else {
                 entry[strlen(entry)-space_run] = '\0';
                 cl_log(LOG_DEBUG, "Adding '%s'", entry);
-                recruit_servant(entry, 0);
+                if (recruit_servant(entry, 0) != 0) {
+                    free(entry);
+                    // sbd should refuse to start if any of the configured device names is invalid.
+                    return -1;
+                }
                 found++;
             }
 
@@ -1015,7 +1022,11 @@ int main(int argc, char **argv, char **envp)
 			break;
 		case 'd':
 #if SUPPORT_SHARED_DISK
-			recruit_servant(optarg, 0);
+			if (recruit_servant(optarg, 0) != 0) {
+				fprintf(stderr, "Invalid device: %s\n", optarg);
+				exit_status = -1;
+				goto out;
+			}
 #else
                         fprintf(stderr, "Shared disk functionality not supported\n");
 			exit_status = -2;
@@ -1107,7 +1118,7 @@ int main(int argc, char **argv, char **envp)
             int devices = parse_device_line(value);
             if(devices < 1) {
                 fprintf(stderr, "Invalid device line: %s\n", value);
-                exit_status = -2;
+                exit_status = -1;
                 goto out;
             }
 #else
