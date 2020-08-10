@@ -164,6 +164,27 @@ AC_ARG_WITH(configdir,
     [ CONFIGDIR="$withval" ]
 )
 
+SBD_WATCHDOG_TIMEOUT_DEFAULT=""
+AC_ARG_WITH(watchdog-timeout-default,
+    [  --with-watchdog-timeout-default=SECONDS
+       Timeout in seconds SBD will configure the watchdog per default],
+    [ SBD_WATCHDOG_TIMEOUT_DEFAULT="$withval" ]
+)
+
+SBD_SYNC_RESOURCE_STARTUP_DEFAULT=""
+AC_ARG_WITH(sync-resource-startup-default,
+    [  --with-sync-resource-startup-default=yes|no
+       Default for SBD_SYNC_RESOURCE_STARTUP if not given in SBD configuration file explicitly],
+    [ SBD_SYNC_RESOURCE_STARTUP_DEFAULT="$withval" ]
+)
+
+SBD_SYNC_RESOURCE_STARTUP_SYSCONFIG=""
+AC_ARG_WITH(sync-resource-startup-sysconfig,
+    [  --with-sync-resource-startup-sysconfig=yes|no
+       Value for SBD_SYNC_RESOURCE_STARTUP going into template SBD configuration file],
+    [ SBD_SYNC_RESOURCE_STARTUP_SYSCONFIG="$withval" ]
+)
+
 #
 # Where is dlopen?
 #
@@ -296,8 +317,35 @@ if test x"${CONFIGDIR}" = x""; then
 fi
 AC_SUBST(CONFIGDIR)
 
+if test x"${SBD_WATCHDOG_TIMEOUT_DEFAULT}" = x""; then
+    case "$host_cpu" in
+        s390|s390x)
+            SBD_WATCHDOG_TIMEOUT_DEFAULT=15
+            ;;
+        *)
+            SBD_WATCHDOG_TIMEOUT_DEFAULT=5
+            ;;
+    esac
+fi
+AC_SUBST(SBD_WATCHDOG_TIMEOUT_DEFAULT)
+AC_DEFINE_UNQUOTED(SBD_WATCHDOG_TIMEOUT_DEFAULT, $SBD_WATCHDOG_TIMEOUT_DEFAULT,
+    Timeout in seconds SBD will configure the watchdog per default)
+
+if test x"${SBD_SYNC_RESOURCE_STARTUP_DEFAULT}" = x""; then
+    SBD_SYNC_RESOURCE_STARTUP_DEFAULT=no
+fi
+AC_SUBST(SBD_SYNC_RESOURCE_STARTUP_DEFAULT)
+dnl rather pass to C as a string and interpret there for consistent interpretation
+AC_DEFINE_UNQUOTED(SBD_SYNC_RESOURCE_STARTUP_DEFAULT, "${SBD_SYNC_RESOURCE_STARTUP_DEFAULT}",
+    Default for SBD_SYNC_RESOURCE_STARTUP if not given in SBD configuration file explicitly)
+
+if test x"${SBD_SYNC_RESOURCE_STARTUP_SYSCONFIG}" = x""; then
+    SBD_SYNC_RESOURCE_STARTUP_SYSCONFIG=no
+fi
+AC_SUBST(SBD_SYNC_RESOURCE_STARTUP_SYSCONFIG)
+
 dnl The Makefiles and shell scripts we output
-AC_CONFIG_FILES([Makefile src/Makefile agent/Makefile man/Makefile agent/sbd src/sbd.service src/sbd_remote.service src/sbd.sh])
+AC_CONFIG_FILES([Makefile src/Makefile agent/Makefile man/Makefile agent/sbd src/sbd.service src/sbd_remote.service src/sbd.sh src/sbd.sysconfig])
 
 AC_CONFIG_SUBDIRS([tests])
 

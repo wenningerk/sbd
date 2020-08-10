@@ -56,7 +56,7 @@ SBD_DELAY_START=no
 SBD_WATCHDOG_DEV=/dev/watchdog
 
 ## Type: integer
-## Default: 5
+## Default: @SBD_WATCHDOG_TIMEOUT_DEFAULT@
 #
 # How long, in seconds, the watchdog will wait before panicking the
 # node if no-one tickles it.
@@ -71,7 +71,7 @@ SBD_WATCHDOG_DEV=/dev/watchdog
 # Be aware that watchdog timeout set in the on-disk metadata takes
 # precedence.
 #
-SBD_WATCHDOG_TIMEOUT=5
+SBD_WATCHDOG_TIMEOUT=@SBD_WATCHDOG_TIMEOUT_DEFAULT@
 
 ## Type: string
 ## Default: "flush,reboot"
@@ -107,7 +107,7 @@ SBD_TIMEOUT_ACTION=flush,reboot
 SBD_MOVE_TO_ROOT_CGROUP=auto
 
 ## Type: yesno
-## Default: no
+## Default: @SBD_SYNC_RESOURCE_STARTUP_DEFAULT@
 #
 # If resource startup syncing is enabled then pacemakerd is
 # gonna wait to be pinged via IPC before it starts resources.
@@ -118,7 +118,7 @@ SBD_MOVE_TO_ROOT_CGROUP=auto
 # ping that will never come when working together with an sbd
 # version that doesn't support the feature.
 #
-SBD_SYNC_RESOURCE_STARTUP=no
+SBD_SYNC_RESOURCE_STARTUP=@SBD_SYNC_RESOURCE_STARTUP_SYSCONFIG@
 
 ## Type: string
 ## Default: ""

@@ -21,6 +21,16 @@
 %global github_owner beekhof
 %global buildnum 1
 
+%ifarch s390x s390
+# minimum timeout on LPAR diag288 watchdog is 15s
+%global watchdog_timeout_default 15
+%else
+%global watchdog_timeout_default 5
+%endif
+
+%global sync_resource_startup_default no
+%global sync_resource_startup_sysconfig no
+
 Name:           sbd
 Summary:        Storage-based death
 License:        GPLv2+
@@ -73,16 +83,14 @@ regression-testing sbd.
 ###########################################################
 # %setup -n sbd-%{version} -q
 %setup -q -n %{name}-%{commit}
-%ifarch s390x s390
-sed -i src/sbd.sysconfig -e "s/Default: 5/Default: 15/"
-sed -i src/sbd.sysconfig -e "s/SBD_WATCHDOG_TIMEOUT=5/SBD_WATCHDOG_TIMEOUT=15/"
-%endif
 ###########################################################
 
 %build
 ./autogen.sh
 export CFLAGS="$RPM_OPT_FLAGS -Wall -Werror"
-%configure
+%configure --with-watchdog-timeout-default=%{watchdog_timeout_default} \
+           --with-sync-resource-startup-default=%{sync_resource_startup_default} \
+           --with-sync-resource-startup-sysconfig=%{sync_resource_startup_sysconfig}
 make %{?_smp_mflags}
 ###########################################################
 
