@@ -32,7 +32,7 @@
 : ${SBD_USE_DM:="yes"}
 
 sbd() {
-	LD_PRELOAD=${SBD_PRELOAD} SBD_WATCHDOG_TIMEOUT=5 SBD_DEVICE="${SBD_DEVICE}" SBD_PRELOAD_LOG=${SBD_PRELOAD_LOG} SBD_WATCHDOG_DEV=/dev/watchdog setsid ${SBD_BINARY} -p ${SBD_PIDFILE} "$@"
+	LD_PRELOAD=${SBD_PRELOAD} SBD_DEVICE="${SBD_DEVICE}" SBD_PRELOAD_LOG=${SBD_PRELOAD_LOG} SBD_WATCHDOG_DEV=/dev/watchdog setsid ${SBD_BINARY} -p ${SBD_PIDFILE} "$@"
 }
 
 sbd_wipe_disk() {
@@ -60,6 +60,9 @@ sbd_setup() {
 	fi
 	SBD_PIDFILE=$(mktemp /tmp/sbd.pidfile.XXXXXX)
 	SBD_PRELOAD_LOG=$(mktemp /tmp/sbd.logfile.XXXXXX)
+	sbd -d ${D[1]} create
+	WATCHDOG_TIMEOUT=$(LD_PRELOAD=${SBD_PRELOAD} SBD_DEVICE="${D[1]}" ${SBD_BINARY} dump |grep watchdog|cut -f2 -d:)
+	MSGWAIT_TIMEOUT=$(LD_PRELOAD=${SBD_PRELOAD} SBD_DEVICE="${D[1]}" ${SBD_BINARY} dump |grep msgwait|cut -f2 -d:)
 }
 
 sbd_teardown() {
@@ -229,7 +232,7 @@ test_stall_inquisitor() {
 	sleep 10
 	_ok kill -0 "$(cat ${SBD_PIDFILE})"
 	kill -STOP "$(cat ${SBD_PIDFILE})"
-	sleep 10
+	sleep $((${WATCHDOG_TIMEOUT} * 2))
 	kill -CONT "$(cat ${SBD_PIDFILE})" 2>/dev/null
 	_in_log "watchdog fired"
 }
@@ -240,7 +243,7 @@ test_wipe_slots1() {
 	sbd -d ${D[1]} -n test-1 watch
 	sleep 2
 	sbd_wipe_disk ${D[1]}
-	sleep 15
+	sleep $((${MSGWAIT_TIMEOUT} + ${WATCHDOG_TIMEOUT} * 2))
 	_in_log "watchdog fired"
 }
 
@@ -251,7 +254,7 @@ test_wipe_slots2() {
 	sbd -d ${D[1]} -w /dev/null -n test-1 watch
 	sleep 2
 	sbd_wipe_disk ${D[1]}
-	sleep 15
+	sleep $((${MSGWAIT_TIMEOUT} + ${WATCHDOG_TIMEOUT} * 2))
 	_in_log "sysrq-trigger ('b')"
 	_in_log "reboot (reboot)"
 }
@@ -298,7 +301,7 @@ test_timeout_action1() {
 	SBD_TIMEOUT_ACTION=off sbd -d ${D[1]} -w /dev/null -n test-1 watch
 	sleep 2
 	sbd_wipe_disk ${D[1]}
-	sleep 15
+	sleep $((${MSGWAIT_TIMEOUT} + ${WATCHDOG_TIMEOUT} * 2))
 	_in_log "sysrq-trigger ('o')"
 	_in_log "reboot (poweroff)"
 }
@@ -310,17 +313,21 @@ test_timeout_action2() {
 	SBD_TIMEOUT_ACTION=crashdump sbd -d ${D[1]} -w /dev/null -n test-1 watch
 	sleep 2
 	sbd_wipe_disk ${D[1]}
-	sleep 15
+	sleep $((${MSGWAIT_TIMEOUT} + ${WATCHDOG_TIMEOUT} * 2))
 	_in_log "sysrq-trigger ('c')"
 }
 
 sbd_setup
 
+_ok test "${WATCHDOG_TIMEOUT}" -eq "${WATCHDOG_TIMEOUT}"
+_ok test "${MSGWAIT_TIMEOUT}" -eq "${MSGWAIT_TIMEOUT}"
+echo "running sbd-tests with WATCHDOG_TIMEOUT=${WATCHDOG_TIMEOUT}s MSGWAIT_TIMEOUT=${MSGWAIT_TIMEOUT}s"
+
 if [[ "${SBD_PRELOAD}" != "" ]]; then
 	SBD_DAEMON_TESTS="watchdog stall_inquisitor wipe_slots1 wipe_slots2 message1 message2 message3 timeout_action1 timeout_action2"
 fi
 
-for T in $(seq 9) ${SBD_DAEMON_TESTS}; do
+for T in 101 102 $(seq 9) ${SBD_DAEMON_TESTS}; do
 	if ! test_$T ; then
 		echo "FAILURE: Test $T"
 		break
