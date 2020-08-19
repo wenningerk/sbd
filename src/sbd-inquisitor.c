@@ -973,9 +973,9 @@ int main(int argc, char **argv, char **envp)
         }
 
         value = getenv("SBD_SYNC_RESOURCE_STARTUP");
-        if(value) {
-            sync_resource_startup = crm_is_true(value);
-        }
+        sync_resource_startup =
+            crm_is_true(value?value:SBD_SYNC_RESOURCE_STARTUP_DEFAULT);
+
 #if !USE_PACEMAKERD_API
         if (sync_resource_startup) {
             fprintf(stderr, "Failed to sync resource-startup as "

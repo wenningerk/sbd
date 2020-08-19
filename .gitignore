@@ -17,6 +17,7 @@ sbd
 *.o
 *.service
 sbd.sh
+sbd.sysconfig
 *~
 *.swp
 *.patch

@@ -219,6 +219,7 @@ mon_retrieve_current_cib()
 	xmlNode *xml_cib = NULL;
 	int options = cib_scope_local | cib_sync_call;
 	int rc = pcmk_ok;
+	const char* element_name;
 
 	free_xml(current_cib);
 	current_cib = NULL;
@@ -235,7 +236,8 @@ mon_retrieve_current_cib()
 		return;
 	}
 
-	if (safe_str_eq(crm_element_name(xml_cib), XML_TAG_CIB)) {
+	element_name = crm_element_name(xml_cib);
+	if (element_name && !strcmp(element_name, XML_TAG_CIB)) {
 		current_cib = xml_cib;
 
 	} else {
