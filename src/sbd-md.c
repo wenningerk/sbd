@@ -720,6 +720,7 @@ int init_devices(struct servants_list_item *servants)
 		}
 		fprintf(stdout, "Device %s is initialized.\n", s->devname);
 	}
+	fprintf(stdout, "Did you check sbd service down on all nodes before? If not do so now and restart afterwards.\n");
 	return 0;
 }
 
