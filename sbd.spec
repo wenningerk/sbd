@@ -137,6 +137,7 @@ rm -rf %{buildroot}
 %config(noreplace) %{_sysconfdir}/sysconfig/sbd
 %{_sbindir}/sbd
 %{_datadir}/sbd
+%{_datadir}/pkgconfig/sbd.pc
 %exclude %{_datadir}/sbd/regressions.sh
 %doc %{_mandir}/man8/sbd*
 %if %{defined _unitdir}
