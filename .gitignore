@@ -32,3 +32,4 @@ sbd-*/
 .deps
 test-driver
 sbd.pc
+build.counter
