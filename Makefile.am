@@ -33,6 +33,9 @@ export SBD_USE_DM := no
 
 EXTRA_DIST      = sbd.spec tests/regressions.sh man/sbd.8.pod.in
 
+pkgconfigdir	= $(datadir)/pkgconfig
+pkgconfig_DATA	= sbd.pc
+
 export:
 	rm -f $(PACKAGE)-HEAD.tar.*
 	if test "$(KEEP_EXISTING_TAR)" != "yes"; then \

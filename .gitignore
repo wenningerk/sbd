@@ -31,3 +31,4 @@ sbd.sysconfig
 sbd-*/
 .deps
 test-driver
+sbd.pc

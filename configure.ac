@@ -345,7 +345,7 @@ fi
 AC_SUBST(SBD_SYNC_RESOURCE_STARTUP_SYSCONFIG)
 
 dnl The Makefiles and shell scripts we output
-AC_CONFIG_FILES([Makefile src/Makefile agent/Makefile man/Makefile agent/sbd src/sbd.service src/sbd_remote.service src/sbd.sh src/sbd.sysconfig])
+AC_CONFIG_FILES([Makefile src/Makefile agent/Makefile man/Makefile agent/sbd src/sbd.service src/sbd_remote.service src/sbd.sh src/sbd.sysconfig sbd.pc])
 
 AC_CONFIG_SUBDIRS([tests])
 
