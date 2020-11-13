@@ -15,11 +15,13 @@
 
 # Please submit bugfixes or comments via http://bugs.opensuse.org/
 #
-%global commit aca7907c1973f331a4f192a0d50e6443840daab6
-%global shortcommit %(echo %{commit}|cut -c1-8)
-%global modified %(echo %{commit}-|cut -f2 -d-)
-%global github_owner beekhof
-%global buildnum 1
+%global longcommit aca7907c1973f331a4f192a0d50e6443840daab6
+%global shortcommit %(echo %{longcommit}|cut -c1-8)
+%global modified %(echo %{longcommit}-|cut -f2 -d-)
+%global github_owner Clusterlabs
+%global commit_counter 0
+%global build_counter 1
+%global buildnum %(expr %{commit_counter} + %{build_counter})
 
 %ifarch s390x s390
 # minimum timeout on LPAR diag288 watchdog is 15s
@@ -38,7 +40,7 @@ Group:          System Environment/Daemons
 Version:        1.4.1
 Release:        99.%{buildnum}.%{shortcommit}.%{modified}git%{?dist}
 Url:            https://github.com/%{github_owner}/%{name}
-Source0:        https://github.com/%{github_owner}/%{name}/archive/%{commit}/%{name}-%{commit}.tar.gz
+Source0:        https://github.com/%{github_owner}/%{name}/archive/%{longcommit}/%{name}-%{longcommit}.tar.gz
 BuildRoot:      %{_tmppath}/%{name}-%{version}-build
 BuildRequires:  autoconf
 BuildRequires:  automake
@@ -82,7 +84,7 @@ regression-testing sbd.
 %prep
 ###########################################################
 # %setup -n sbd-%{version} -q
-%setup -q -n %{name}-%{commit}
+%setup -q -n %{name}-%{longcommit}
 ###########################################################
 
 %build
