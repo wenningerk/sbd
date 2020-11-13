@@ -3,7 +3,8 @@ SUBDIRS = src agent man tests
 # .gz because github doesn't support .xz yet :-(
 # this is modified
 #
-TAG		?= $(shell git log --pretty="format:%H" -n 1 || sed -n -e "s/%global commit //p" sbd.spec)$(shell test -n "$$(git status -s)" && echo -n "-mod")
+TAG		?= $(shell git log --pretty="format:%H" -n 1 || sed -n -e "s/%global longcommit\s*//p" sbd.spec)$(shell test -n "$$(git status -s)" && echo -n "-mod")
+SPEC_VERSION	?= $(shell sed -n -e "s/Version:\s*//p" sbd.spec)
 distdir		 = $(PACKAGE)-$(TAG)
 TARFILE		 = $(distdir).tar.gz
 DIST_ARCHIVES	 = $(TARFILE)
@@ -23,8 +24,9 @@ MOCK_TARGET     ?= rhel-7.1-candidate-x86_64
 MOCK_OPTIONS	?= --resultdir=$(RPM_ROOT)/mock --no-cleanup-after
 
 BUILD_COUNTER	?= build.counter
-LAST_COUNT      = $(shell test ! -e $(BUILD_COUNTER) && echo 0; test -e $(BUILD_COUNTER) && cat $(BUILD_COUNTER))
-COUNT           = $(shell expr 1 + $(LAST_COUNT))
+COUNT           = $(shell expr 1 + 0$(shell cat $(BUILD_COUNTER)))
+
+COMMIT_COUNTER	?= $(shell git describe --tags --long --always --match v$(SPEC_VERSION) | cut -f 2 -d-)
 
 TESTS           = tests/regressions.sh
 export SBD_BINARY := src/sbd
@@ -46,7 +48,7 @@ export:
 	    echo `date`: Using existing tarball: $(TARFILE);			\
 	else									\
 	    rm -f $(PACKAGE).tar.*;                                             \
-	    (git archive --prefix=$(distdir)/ $(shell echo $(TAG)|cut -f1 -d-) || tar -c --transform="s,^,$(distdir)/," --exclude="*.tar.*" --exclude="$(distdir)" --exclude="*.o" --exclude="*.8" --exclude="config.*" --exclude="libtool" --exclude="ltmain.sh*" --exclude="Makefile" --exclude="Makefile.in" --exclude="stamp-*" --exclude="*.service" --exclude="sbd" --exclude="*.m4" --exclude="*.cache" --exclude="configure" --exclude="*.list" --exclude="depcomp" --exclude="install-sh" --exclude="missing" --exclude="compile" --exclude="sbd.sh" --exclude="sbd.sysconfig" --exclude="~" --exclude="*.swp" --exclude="*.patch" --exclude="*.diff" --exclude="*.orig" --exclude="*.rej" --exclude="*.rpm" --exclude="*.pod" --exclude=".deps" --exclude="test-driver" *) | gzip > $(TARFILE);	\
+	    (git archive --prefix=$(distdir)/ $(shell echo $(TAG)|cut -f1 -d-) || tar -c --transform="s,^,$(distdir)/," --exclude="*.tar.*" --exclude="$(distdir)" --exclude="*.o" --exclude="*.8" --exclude="config.*" --exclude="libtool" --exclude="ltmain.sh*" --exclude="Makefile" --exclude="Makefile.in" --exclude="stamp-*" --exclude="*.service" --exclude="sbd" --exclude="*.m4" --exclude="*.cache" --exclude="configure" --exclude="*.list" --exclude="depcomp" --exclude="install-sh" --exclude="missing" --exclude="compile" --exclude="sbd.sh" --exclude="sbd.sysconfig" --exclude="~" --exclude="*.swp" --exclude="*.patch" --exclude="*.diff" --exclude="*.orig" --exclude="*.rej" --exclude="*.rpm" --exclude="*.pod" --exclude=".deps" --exclude="test-driver" --exclude="sbd.pc" --exclude="build.counter" *) | gzip > $(TARFILE);	\
 	    if test -n "$$(git status -s)" || test "$(INJECT_GIT_COMMIT)" = "yes"; then \
 		if test -n "$$(git status -s)"; then git diff HEAD --name-only|grep -v "^\."|xargs -n1 git diff HEAD > uncommitted.diff; fi; \
 		rm -rf $(distdir); tar -xzf $(TARFILE); rm $(TARFILE); \
@@ -66,13 +68,16 @@ spec:
 	rm -rf $(distdir)
 	mkdir $(distdir)
 	cp $(PACKAGE).spec $(distdir)
-	sed -i 's/global\ commit.*/global\ commit\ $(TAG)/' $(distdir)/$(PACKAGE).spec
+	sed -i 's/global\ longcommit.*/global\ longcommit\ $(TAG)/' $(distdir)/$(PACKAGE).spec
+	if [ -e $(BUILD_COUNTER) ]; then \
+		sed -i 's/global\ build_counter.*/global\ build_counter\ $(COUNT)/' $(distdir)/$(PACKAGE).spec; \
+		echo $(COUNT) > $(BUILD_COUNTER); \
+	fi
+	if [ -n $(COMMIT_COUNTER) ]; then \
+		sed -i 's/global\ commit_counter.*/global\ commit_counter\ $(COMMIT_COUNTER)/' $(distdir)/$(PACKAGE).spec; \
+	fi
 
 srpm:	export spec
-	if [ -e $(BUILD_COUNTER) ]; then							\
-		sed -i 's/global\ buildnum.*/global\ buildnum\ $(COUNT)/' $(distdir)/$(PACKAGE).spec;	\
-		echo $(COUNT) > $(BUILD_COUNTER);					\
-	fi
 	rpmbuild $(RPM_OPTS) -bs $(distdir)/$(PACKAGE).spec
 
 rpm:	export spec
