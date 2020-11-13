@@ -24,7 +24,7 @@ MOCK_OPTIONS	?= --resultdir=$(RPM_ROOT)/mock --no-cleanup-after
 
 BUILD_COUNTER	?= build.counter
 LAST_COUNT      = $(shell test ! -e $(BUILD_COUNTER) && echo 0; test -e $(BUILD_COUNTER) && cat $(BUILD_COUNTER))
-COUNT           = $(shell expr 1 + $(LAST_COUNT))
+COUNT           = $(shell expr 1 + 0$(LAST_COUNT))
 
 TESTS           = tests/regressions.sh
 export SBD_BINARY := src/sbd
