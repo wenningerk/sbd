@@ -114,9 +114,14 @@ SBD_MOVE_TO_ROOT_CGROUP=auto
 # On shutdown pacemakerd is going to wait in a state where it
 # has cleanly shutdown resources till sbd fetches that state.
 #
-# Default is 'no' to prevent pacemaker from waiting for a
-# ping that will never come when working together with an sbd
-# version that doesn't support the feature.
+# The default is set when building SBD and Pacemaker from source.
+# Going for 'no' is safer if it can't be assured that SBD and
+# Pacemaker installed do both support the synchronization feature.
+# When going with 'yes' - also using package dependencies to
+# assure SBD & Pacemaker both support the synchronization
+# feature and are assuming the same default - an SBD configuration
+# inherited via an upgrade doesn't have to be altered to still
+# benefit from the new feature.
 #
 SBD_SYNC_RESOURCE_STARTUP=@SBD_SYNC_RESOURCE_STARTUP_SYSCONFIG@
 
