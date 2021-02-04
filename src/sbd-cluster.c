@@ -33,7 +33,7 @@
 #include <crm/cluster.h>
 #include <crm/common/mainloop.h>
 
-#if CHECK_TWO_NODE || CHECK_QDEVICE_SYNC_TIMEOUT
+#if CHECK_TWO_NODE || CHECK_QDEVICE_SYNC_TIMEOUT || CHECK_COROSYNC_TIMING
 #include <glib-unix.h>
 #endif
 
@@ -99,7 +99,20 @@ static uint32_t qdevice_sync_timeout = /* in seconds */
     VOTEQUORUM_QDEVICE_DEFAULT_SYNC_TIMEOUT / 1000;
 #endif
 
-#if CHECK_TWO_NODE || CHECK_QDEVICE_SYNC_TIMEOUT
+#if CHECK_COROSYNC_TIMING
+/* token_timeout + send_join + join + consensus
+ * runtime.config.totem.token (u32) = 3650
+ * runtime.config.totem.send_join (u32) = 0
+ * runtime.config.totem.join (u32) = 50
+ * runtime.config.totem.consensus (u32) = 4380
+ */
+static uint32_t totem_token = 0;
+static uint32_t totem_send_join = 0;
+static uint32_t totem_join = 0;
+static uint32_t totem_consensus = 0;
+#endif
+
+#if CHECK_TWO_NODE || CHECK_QDEVICE_SYNC_TIMEOUT || CHECK_COROSYNC_TIMING
 #include <corosync/cmap.h>
 
 static cmap_handle_t cmap_handle = 0;
@@ -118,6 +131,12 @@ sbd_cpg_membership_health_update()
 #if CHECK_QDEVICE_SYNC_TIMEOUT
         bool quorum_is_suspect_qdevice_timing =
             using_qdevice && (qdevice_sync_timeout > timeout_watchdog);
+#endif
+#if CHECK_COROSYNC_TIMING
+        uint32_t corosync_forming_timeout =
+            totem_token + totem_send_join + totem_join + totem_consensus;
+        bool quorum_is_suspect_corosync_timing =
+            corosync_forming_timeout > timeout_watchdog * 1000;
 #endif
 
         do {
@@ -149,6 +168,21 @@ sbd_cpg_membership_health_update()
                     "(%lus).",
                     name_for_cluster_type(get_cluster_type()),
                     qdevice_sync_timeout, timeout_watchdog
+                    );
+                break;
+            }
+#endif
+#if CHECK_COROSYNC_TIMING
+            if (quorum_is_suspect_corosync_timing) {
+               /* We can't really trust quorum info as corosync member forming
+                * is to sluggish for our watchdog-timeout.
+                */
+                set_servant_health(pcmk_health_noquorum, LOG_WARNING,
+                    "Connected to %s but quorum is distrusted for SBD "
+                    "as timeout for cluster forming (%dms) > watchdog-timeout "
+                    "(%lums).",
+                    name_for_cluster_type(get_cluster_type()),
+                    corosync_forming_timeout, timeout_watchdog * 1000
                     );
                 break;
             }
@@ -186,7 +220,7 @@ sbd_cpg_membership_dispatch(cpg_handle_t handle,
     notify_parent();
 }
 
-#if CHECK_TWO_NODE || CHECK_QDEVICE_SYNC_TIMEOUT
+#if CHECK_TWO_NODE || CHECK_QDEVICE_SYNC_TIMEOUT || CHECK_COROSYNC_TIMING
 static void sbd_cmap_notify_fn(
     cmap_handle_t cmap_handle,
     cmap_track_handle_t cmap_track_handle,
@@ -233,7 +267,29 @@ static void sbd_cmap_notify_fn(
                             qdevice_sync_timeout =
                                 VOTEQUORUM_QDEVICE_DEFAULT_SYNC_TIMEOUT / 1000;
                         }
-                    } else {
+                    } else
+#endif
+#if CHECK_COROSYNC_TIMING
+                    if (!strcmp(key_name, "runtime.config.totem.token")) {
+                        if (new_val.data) {
+                            totem_token = *((uint32_t *) new_val.data);
+                        }
+                    } else if (!strcmp(key_name, "runtime.config.totem.send_join")) {
+                        if (new_val.data) {
+                            totem_send_join = *((uint32_t *) new_val.data);
+                        }
+                    } else if (!strcmp(key_name, "runtime.config.totem.join")) {
+                        if (new_val.data) {
+                            totem_join = *((uint32_t *) new_val.data);
+                        }
+                    } else if (!strcmp(key_name, "runtime.config.totem.consensus")) {
+                        if (new_val.data) {
+                            totem_token = *((uint32_t *) new_val.data);
+                        }
+                    } else
+#endif
+#if CHECK_QDEVICE_SYNC_TIMEOUT || CHECK_COROSYNC_TIMING
+                    {
                         return;
                     }
                     break;
@@ -360,6 +416,36 @@ verify_against_cmap_config(void)
         }
 #endif
 
+#if CHECK_COROSYNC_TIMING
+        if (cmap_track_add(cmap_handle, "runtime.config.totem.token",
+                            CMAP_TRACK_MODIFY|CMAP_TRACK_ADD,
+                            sbd_cmap_notify_fn, NULL, &track_handle) != CS_OK) {
+            cl_log(LOG_WARNING, "Failed adding CMAP tracker for token-timeout\n");
+            goto out;
+        }
+
+        if (cmap_track_add(cmap_handle, "runtime.config.totem.send_join",
+                            CMAP_TRACK_MODIFY|CMAP_TRACK_ADD,
+                            sbd_cmap_notify_fn, NULL, &track_handle) != CS_OK) {
+            cl_log(LOG_WARNING, "Failed adding CMAP tracker for send-join\n");
+            goto out;
+        }
+
+        if (cmap_track_add(cmap_handle, "runtime.config.totem.join",
+                            CMAP_TRACK_MODIFY|CMAP_TRACK_ADD,
+                            sbd_cmap_notify_fn, NULL, &track_handle) != CS_OK) {
+            cl_log(LOG_WARNING, "Failed adding CMAP tracker for join\n");
+            goto out;
+        }
+
+        if (cmap_track_add(cmap_handle, "runtime.config.totem.consensus",
+                            CMAP_TRACK_MODIFY|CMAP_TRACK_ADD,
+                            sbd_cmap_notify_fn, NULL, &track_handle) != CS_OK) {
+            cl_log(LOG_WARNING, "Failed adding CMAP tracker for consensus\n");
+            goto out;
+        }
+#endif
+
         /* add the tracker to mainloop */
         if (cmap_fd_get(cmap_handle, &cmap_fd) != CS_OK) {
             cl_log(LOG_WARNING, "Failed to get a file handle for cmap\n");
@@ -404,6 +490,52 @@ verify_against_cmap_config(void)
     } else {
         cl_log(LOG_INFO,
                "quorum.device.sync_timeout not present in cmap\n");
+    }
+#endif
+
+#if CHECK_COROSYNC_TIMING
+    if (cmap_get_uint32(cmap_handle, "runtime.config.totem.token",
+                        &totem_token) == CS_OK) {
+
+        cl_log(LOG_INFO,
+               "Corosync is using token-timeout=%dms",
+               totem_token);
+    } else {
+        cl_log(LOG_INFO,
+               "runtime.config.totem.token not present in cmap\n");
+    }
+
+    if (cmap_get_uint32(cmap_handle, "runtime.config.totem.send_join",
+                        &totem_send_join) == CS_OK) {
+
+        cl_log(LOG_INFO,
+               "Corosync is using send-join=%dms",
+               totem_send_join);
+    } else {
+        cl_log(LOG_INFO,
+               "runtime.config.totem.send_join not present in cmap\n");
+    }
+
+    if (cmap_get_uint32(cmap_handle, "runtime.config.totem.join",
+                        &totem_join) == CS_OK) {
+
+        cl_log(LOG_INFO,
+               "Corosync is using join=%dms",
+               totem_join);
+    } else {
+        cl_log(LOG_INFO,
+               "runtime.config.totem.join not present in cmap\n");
+    }
+
+    if (cmap_get_uint32(cmap_handle, "runtime.config.totem.consensus",
+                        &totem_consensus) == CS_OK) {
+
+        cl_log(LOG_INFO,
+               "Corosync is using consensus=%dms",
+               totem_consensus);
+    } else {
+        cl_log(LOG_INFO,
+               "runtime.config.totem.consensus not present in cmap\n");
     }
 #endif
 
@@ -499,7 +631,7 @@ sbd_membership_connect(void)
         } else {
             cl_log(LOG_INFO, "Attempting connection to %s", name_for_cluster_type(stack));
 
-#if SUPPORT_COROSYNC && (CHECK_TWO_NODE || CHECK_QDEVICE_SYNC_TIMEOUT)
+#if SUPPORT_COROSYNC && (CHECK_TWO_NODE || CHECK_QDEVICE_SYNC_TIMEOUT || CHECK_COROSYNC_TIMING)
             if (verify_against_cmap_config()) {
 #endif
 
@@ -507,7 +639,7 @@ sbd_membership_connect(void)
                     connected = true;
                 }
 
-#if SUPPORT_COROSYNC && (CHECK_TWO_NODE || CHECK_QDEVICE_SYNC_TIMEOUT)
+#if SUPPORT_COROSYNC && (CHECK_TWO_NODE || CHECK_QDEVICE_SYNC_TIMEOUT || CHECK_COROSYNC_TIMING)
             }
 #endif
         }
@@ -530,7 +662,7 @@ sbd_membership_destroy(gpointer user_data)
     cl_log(LOG_WARNING, "Lost connection to %s", name_for_cluster_type(get_cluster_type()));
 
     if (get_cluster_type() != pcmk_cluster_unknown) {
-#if SUPPORT_COROSYNC && (CHECK_TWO_NODE || CHECK_QDEVICE_SYNC_TIMEOUT)
+#if SUPPORT_COROSYNC && (CHECK_TWO_NODE || CHECK_QDEVICE_SYNC_TIMEOUT || CHECK_COROSYNC_TIMING)
         cmap_destroy();
 #endif
     }

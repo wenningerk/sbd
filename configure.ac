@@ -154,6 +154,10 @@ AM_CONDITIONAL(CHECK_QDEVICE_SYNC_TIMEOUT,
                test "$HAVE_DECL_VOTEQUORUM_QDEVICE_DEFAULT_SYNC_TIMEOUT" = "1" &&
                test "$HAVE_cmap" = "1")
 
+AC_DEFINE_UNQUOTED(CHECK_COROSYNC_TIMING, $HAVE_cmap,
+                   Turn on checking if watchdog-timeout and corosync-timing are matching)
+AM_CONDITIONAL(CHECK_COROSYNC_TIMING, test "$HAVE_cmap" = "1")
+
 AC_DEFINE_UNQUOTED(USE_PACEMAKERD_API, $HAVE_pacemakerd_api, Turn on synchronization between sbd & pacemakerd)
 AM_CONDITIONAL(USE_PACEMAKERD_API, test "$HAVE_pacemakerd_api" = "1")
 
