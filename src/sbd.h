@@ -143,6 +143,7 @@ void notify_parent(void);
 /* Tunable defaults: */
 extern unsigned long    timeout_watchdog;
 extern unsigned long    timeout_watchdog_warn;
+extern bool             do_calculate_timeout_watchdog_warn;
 extern unsigned long    timeout_watchdog_crashdump;
 extern int      timeout_allocate;
 extern int      timeout_loop;

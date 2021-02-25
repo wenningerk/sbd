@@ -927,7 +927,7 @@ int main(int argc, char **argv, char **envp)
         value = getenv("SBD_WATCHDOG_TIMEOUT");
         if(value) {
             timeout_watchdog = crm_get_msec(value) / 1000;
-            if(timeout_watchdog > 5) {
+            if (do_calculate_timeout_watchdog_warn && timeout_watchdog > 5) {
                 timeout_watchdog_warn = (int)timeout_watchdog / 5 * 3;
             }
         }
@@ -1058,7 +1058,7 @@ int main(int argc, char **argv, char **envp)
 			break;
 		case '1':
 			timeout_watchdog = atoi(optarg);
-                        if(timeout_watchdog > 5) {
+                        if (do_calculate_timeout_watchdog_warn && timeout_watchdog > 5) {
                             timeout_watchdog_warn = (int)timeout_watchdog / 5 * 3;
                         }
 			break;
@@ -1073,6 +1073,7 @@ int main(int argc, char **argv, char **envp)
 			break;
 		case '5':
 			timeout_watchdog_warn = atoi(optarg);
+			do_calculate_timeout_watchdog_warn = false;
 			cl_log(LOG_INFO, "Setting latency warning to %d",
 					(int)timeout_watchdog_warn);
 			break;

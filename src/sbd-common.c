@@ -38,6 +38,7 @@
 unsigned long	timeout_watchdog 	= SBD_WATCHDOG_TIMEOUT_DEFAULT;
 int		timeout_msgwait		= 2 * SBD_WATCHDOG_TIMEOUT_DEFAULT;
 unsigned long	timeout_watchdog_warn 	= calculate_timeout_watchdog_warn(SBD_WATCHDOG_TIMEOUT_DEFAULT);
+bool		do_calculate_timeout_watchdog_warn = true;
 int		timeout_allocate 	= 2;
 int		timeout_loop	    	= 1;
 int		timeout_io		= 3;
