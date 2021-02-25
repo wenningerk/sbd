@@ -698,7 +698,7 @@ void inquisitor_child(void)
 
 		if (timeout_watchdog_warn && (latency > (int)timeout_watchdog_warn)) {
 			cl_log(LOG_WARNING,
-			       "Latency: No liveness for %d s exceeds threshold of %d s (healthy servants: %d)",
+			       "Latency: No liveness for %ds exceeds watchdog warning timeout of %ds (healthy servants: %d)",
 			       (int)latency, (int)timeout_watchdog_warn, good_servants);
 
                         if (debug_mode && watchdog_use) {
