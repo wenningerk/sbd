@@ -927,9 +927,6 @@ int main(int argc, char **argv, char **envp)
         value = getenv("SBD_WATCHDOG_TIMEOUT");
         if(value) {
             timeout_watchdog = crm_get_msec(value) / 1000;
-            if (do_calculate_timeout_watchdog_warn && timeout_watchdog > 5) {
-                timeout_watchdog_warn = (int)timeout_watchdog / 5 * 3;
-            }
         }
 
         value = getenv("SBD_PIDFILE");
@@ -1058,9 +1055,6 @@ int main(int argc, char **argv, char **envp)
 			break;
 		case '1':
 			timeout_watchdog = atoi(optarg);
-                        if (do_calculate_timeout_watchdog_warn && timeout_watchdog > 5) {
-                            timeout_watchdog_warn = (int)timeout_watchdog / 5 * 3;
-                        }
 			break;
 		case '2':
 			timeout_allocate = atoi(optarg);
@@ -1268,6 +1262,12 @@ int main(int argc, char **argv, char **envp)
 		exit_status = -2;
 	}
 #endif
+
+        /* Re-calculate timeout_watchdog_warn based on any timeout_watchdog from:
+         * SBD_WATCHDOG_TIMEOUT, -1 option or on-disk setting read with open_any_device() */
+        if (do_calculate_timeout_watchdog_warn) {
+            timeout_watchdog_warn = calculate_timeout_watchdog_warn(timeout_watchdog);
+        }
 
         if (strcmp(argv[optind], "query-watchdog") == 0) {
             exit_status = watchdog_info();
