@@ -1103,27 +1103,6 @@ int main(int argc, char **argv, char **envp)
 		}
 	}
 
-    if (strcmp(argv[optind], "watch") == 0) {
-        value = getenv("SBD_SYNC_RESOURCE_STARTUP");
-        sync_resource_startup =
-            crm_is_true(value?value:SBD_SYNC_RESOURCE_STARTUP_DEFAULT);
-
-#if !USE_PACEMAKERD_API
-        if (sync_resource_startup) {
-            fprintf(stderr, "Failed to sync resource-startup as "
-                "SBD was built against pacemaker not supporting pacemakerd-API.\n");
-            exit_status = -1;
-            goto out;
-        }
-#else
-        if (!sync_resource_startup) {
-            cl_log(LOG_WARNING, "SBD built against pacemaker supporting "
-                             "pacemakerd-API. Should think about enabling "
-                             "SBD_SYNC_RESOURCE_STARTUP.");
-        }
-#endif
-    }
-
     if (disk_count == 0) {
         /* if we already have disks from commandline
            then it is probably undesirable to add those
@@ -1224,6 +1203,27 @@ int main(int argc, char **argv, char **envp)
 			goto out;
 		}
 	}
+
+    if (strcmp(argv[optind], "watch") == 0) {
+        value = getenv("SBD_SYNC_RESOURCE_STARTUP");
+        sync_resource_startup =
+            crm_is_true(value?value:SBD_SYNC_RESOURCE_STARTUP_DEFAULT);
+
+#if !USE_PACEMAKERD_API
+        if (sync_resource_startup) {
+            fprintf(stderr, "Failed to sync resource-startup as "
+                "SBD was built against pacemaker not supporting pacemakerd-API.\n");
+            exit_status = -1;
+            goto out;
+        }
+#else
+        if (!sync_resource_startup) {
+            cl_log(LOG_WARNING, "SBD built against pacemaker supporting "
+                             "pacemakerd-API. Should think about enabling "
+                             "SBD_SYNC_RESOURCE_STARTUP.");
+        }
+#endif
+    }
 
 #if SUPPORT_SHARED_DISK
 	if (strcmp(argv[optind], "create") == 0) {
