@@ -1231,11 +1231,11 @@ int servant_md(const char *diskname, int mode, const void* argp)
 		latency = t1 - t0;
 		if (timeout_watchdog_warn && (latency > timeout_watchdog_warn)) {
 			cl_log(LOG_WARNING,
-			       "Latency: %d exceeded threshold %d on disk %s",
+			       "Latency: %ds exceeded watchdog warning timeout %ds on disk %s",
 			       (int)latency, (int)timeout_watchdog_warn,
 			       diskname);
 		} else if (debug) {
-			DBGLOG(LOG_DEBUG, "Latency: %d on disk %s", (int)latency,
+			DBGLOG(LOG_DEBUG, "Latency: %ds on disk %s", (int)latency,
 			       diskname);
 		}
 	}

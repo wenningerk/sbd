@@ -143,6 +143,7 @@ void notify_parent(void);
 /* Tunable defaults: */
 extern unsigned long    timeout_watchdog;
 extern unsigned long    timeout_watchdog_warn;
+extern bool             do_calculate_timeout_watchdog_warn;
 extern unsigned long    timeout_watchdog_crashdump;
 extern int      timeout_allocate;
 extern int      timeout_loop;
@@ -210,3 +211,8 @@ void set_servant_health(enum pcmk_health state, int level, char const *format, .
 bool sbd_is_disk(struct servants_list_item *servant);
 bool sbd_is_pcmk(struct servants_list_item *servant);
 bool sbd_is_cluster(struct servants_list_item *servant);
+
+#define calculate_timeout_watchdog_warn(timeout) \
+	(timeout < 5 ? 2 : \
+	(timeout < (ULONG_MAX / 3) ? \
+	(((unsigned long) timeout) * 3 / 5) : (((unsigned long) timeout) / 5 * 3)))

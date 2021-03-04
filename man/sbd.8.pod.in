@@ -321,7 +321,7 @@ without a chance to write its logs to disk), this is very useful for getting
 an indication that the watchdog timeout is too short for the IO load of the
 system.
 
-Default is 3 seconds, set to zero to disable.
+Default is about 3/5 of watchdog timeout, set to zero to disable.
 
 =item B<-C> I<N>
 
