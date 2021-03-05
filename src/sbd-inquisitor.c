@@ -39,6 +39,28 @@ bool sync_resource_startup = false;
 
 int parse_device_line(const char *line);
 
+static const char *
+get_env_option(const char *option)
+{
+	const char *value = getenv(option);
+	size_t max = 0;
+	size_t lpc = 0;
+
+	if (value == NULL) {
+		return NULL;
+	}
+
+	max = strlen(value);
+
+	for (lpc = 0; lpc < max; lpc++) {
+		if (!isspace(value[lpc])) {
+			break;
+		}
+	}
+
+	return (strlen(value + lpc) > 0 ? (value + lpc) : NULL);
+}
+
 static int
 recruit_servant(const char *devname, pid_t pid)
 {
@@ -894,14 +916,14 @@ int main(int argc, char **argv, char **envp)
 
 	sbd_get_uname();
 
-        value = getenv("SBD_PACEMAKER");
+        value = get_env_option("SBD_PACEMAKER");
         if(value) {
             check_pcmk = crm_is_true(value);
             check_cluster = crm_is_true(value);
         }
         cl_log(LOG_INFO, "Enable pacemaker checks: %d (%s)", (int)check_pcmk, value?value:"default");
 
-        value = getenv("SBD_STARTMODE");
+        value = get_env_option("SBD_STARTMODE");
         if(value == NULL) {
         } else if(strcmp(value, "clean") == 0) {
             start_mode = 1;
@@ -910,7 +932,7 @@ int main(int argc, char **argv, char **envp)
         }
         cl_log(LOG_INFO, "Start mode set to: %d (%s)", (int)start_mode, value?value:"default");
 
-        value = getenv("SBD_WATCHDOG_DEV");
+        value = get_env_option("SBD_WATCHDOG_DEV");
         if(value) {
             free(watchdogdev);
             watchdogdev = strdup(value);
@@ -919,23 +941,23 @@ int main(int argc, char **argv, char **envp)
 
         /* SBD_WATCHDOG has been dropped from sbd.sysconfig example.
          * This is for backward compatibility. */
-        value = getenv("SBD_WATCHDOG");
+        value = get_env_option("SBD_WATCHDOG");
         if(value) {
             watchdog_use = crm_is_true(value);
         }
 
-        value = getenv("SBD_WATCHDOG_TIMEOUT");
+        value = get_env_option("SBD_WATCHDOG_TIMEOUT");
         if(value) {
             timeout_watchdog = crm_get_msec(value) / 1000;
         }
 
-        value = getenv("SBD_PIDFILE");
+        value = get_env_option("SBD_PIDFILE");
         if(value) {
             pidfile = strdup(value);
             cl_log(LOG_INFO, "pidfile set to %s", pidfile);
         }
 
-        value = getenv("SBD_DELAY_START");
+        value = get_env_option("SBD_DELAY_START");
         if(value) {
             delay_start = crm_is_true(value);
 
@@ -951,12 +973,12 @@ int main(int argc, char **argv, char **envp)
                delay_start? (delay > 0 ? value: "msgwait") : "",
                delay_start? ")" : "");
 
-        value = getenv("SBD_TIMEOUT_ACTION");
+        value = get_env_option("SBD_TIMEOUT_ACTION");
         if(value) {
             timeout_action = strdup(value);
         }
 
-        value = getenv("SBD_MOVE_TO_ROOT_CGROUP");
+        value = get_env_option("SBD_MOVE_TO_ROOT_CGROUP");
         if(value) {
             move_to_root_cgroup = crm_is_true(value);
 
@@ -1108,7 +1130,7 @@ int main(int argc, char **argv, char **envp)
            then it is probably undesirable to add those
            from environment (general rule cmdline has precedence)
          */
-        value = getenv("SBD_DEVICE");
+        value = get_env_option("SBD_DEVICE");
         if ((value) && strlen(value)) {
 #if SUPPORT_SHARED_DISK
             int devices = parse_device_line(value);
@@ -1205,7 +1227,7 @@ int main(int argc, char **argv, char **envp)
 	}
 
     if (strcmp(argv[optind], "watch") == 0) {
-        value = getenv("SBD_SYNC_RESOURCE_STARTUP");
+        value = get_env_option("SBD_SYNC_RESOURCE_STARTUP");
         sync_resource_startup =
             crm_is_true(value?value:SBD_SYNC_RESOURCE_STARTUP_DEFAULT);
 
