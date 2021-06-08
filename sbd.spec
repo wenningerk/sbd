@@ -30,8 +30,22 @@
 %global watchdog_timeout_default 5
 %endif
 
-%global sync_resource_startup_default no
-%global sync_resource_startup_sysconfig no
+# Be careful with sync_resource_startup_default
+# being enabled. This configuration has
+# to be in sync with configuration in pacemaker
+# where it is called sbd_sync - assure by e.g.
+# mutual rpm dependencies.
+%bcond_without sync_resource_startup_default
+# Syncing enabled per default will lead to
+# syncing enabled on upgrade without adaption
+# of the config.
+# Setting can still be overruled via sysconfig.
+# The setting in the config-template packaged
+# will follow the default if below is is left
+# empty. But it is possible to have the setting
+# in the config-template deviate from the default
+# by setting below to an explicit 'yes' or 'no'.
+%global sync_resource_startup_sysconfig ""
 
 Name:           sbd
 Summary:        Storage-based death
@@ -72,6 +86,9 @@ ExclusiveArch: i686 x86_64 s390x aarch64 ppc64le
 
 This package contains the storage-based death functionality.
 
+Available rpmbuild rebuild options:
+  --with(out) : sync_resource_startup_default
+
 %package tests
 Summary:        Storage-based death environment for regression tests
 License:        GPLv2+
@@ -91,7 +108,7 @@ regression-testing sbd.
 ./autogen.sh
 export CFLAGS="$RPM_OPT_FLAGS -Wall -Werror"
 %configure --with-watchdog-timeout-default=%{watchdog_timeout_default} \
-           --with-sync-resource-startup-default=%{sync_resource_startup_default} \
+           --with-sync-resource-startup-default=%{?with_sync_resource_startup_default:yes}%{!?with_sync_resource_startup_default:no}  \
            --with-sync-resource-startup-sysconfig=%{sync_resource_startup_sysconfig}
 make %{?_smp_mflags}
 ###########################################################
