@@ -15,7 +15,7 @@
 
 # Please submit bugfixes or comments via http://bugs.opensuse.org/
 #
-%global longcommit bfeee963f7363720da91a018045ca6746d822ba0
+%global longcommit 2a00ac70f7200ed238a5bc73392e6a59a06fe904
 %global shortcommit %(echo %{longcommit}|cut -c1-8)
 %global modified %(echo %{longcommit}-|cut -f2 -d-)
 %global github_owner Clusterlabs
@@ -51,7 +51,7 @@ Name:           sbd
 Summary:        Storage-based death
 License:        GPLv2+
 Group:          System Environment/Daemons
-Version:        1.4.2
+Version:        1.5.0
 Release:        99.%{buildnum}.%{shortcommit}.%{modified}git%{?dist}
 Url:            https://github.com/%{github_owner}/%{name}
 Source0:        https://github.com/%{github_owner}/%{name}/archive/%{longcommit}/%{name}-%{longcommit}.tar.gz
@@ -172,6 +172,14 @@ rm -rf %{buildroot}
 %{_libdir}/libsbdtestbed*
 
 %changelog
+* Tue Jun 8 2021 <klaus.wenninger@aon.at> - 1.5.0-99.0.2a00ac70.git
+- default to resource-syncing with pacemaker in spec-file and configure.ac
+  This default has to match between sbd and pacemaker and
+  thus qualifies this release for a minor-version-bump
+- fix some regressions introduced by adding configurability previously
+- adapt description of startup/shutdown sync with pacemaker
+- make watchdog warning messages more understandable
+
 * Wed Dec 2 2020 <klaus.wenninger@aon.at> - 1.4.2-99.1.bfeee963.git
 - improve build/CI-friendlyness
 - * travis: switch to F32 as build-host
