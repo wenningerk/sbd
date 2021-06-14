@@ -26,7 +26,7 @@ MOCK_OPTIONS	?= --resultdir=$(RPM_ROOT)/mock --no-cleanup-after
 BUILD_COUNTER	?= build.counter
 COUNT           = $(shell expr 1 + 0$(shell cat $(BUILD_COUNTER)))
 
-COMMIT_COUNTER	?= $(shell git describe --tags --long --always --match v$(SPEC_VERSION) | cut -f 2 -d-)
+COMMIT_COUNTER	?= $(shell git describe --tags --long --always --match v$(SPEC_VERSION) | cut -f 2 -d- -s)
 
 TESTS           = tests/regressions.sh
 export SBD_BINARY := src/sbd
@@ -74,7 +74,7 @@ spec:
 		echo $(COUNT) > $(BUILD_COUNTER); \
 	fi
 	if [ -n $(COMMIT_COUNTER) ]; then \
-		sed -i 's/global\ commit_counter.*/global\ commit_counter\ $(COMMIT_COUNTER)/' $(distdir)/$(PACKAGE).spec; \
+		sed -i 's/global\ commit_counter.*/global\ commit_counter\ $(COMMIT_COUNTER)-1/' $(distdir)/$(PACKAGE).spec; \
 	fi
 
 srpm:	export spec

@@ -20,7 +20,7 @@ dnl     checks for library functions
 dnl     checks for system services
 
 AC_INIT([sbd], 
-	[1.4.2],
+	[1.5.0],
 	[lmb@suse.com])
 m4_include([tests-opt.m4])
 AC_CANONICAL_HOST
@@ -332,7 +332,7 @@ AC_DEFINE_UNQUOTED(SBD_WATCHDOG_TIMEOUT_DEFAULT, $SBD_WATCHDOG_TIMEOUT_DEFAULT,
     Timeout in seconds SBD will configure the watchdog per default)
 
 if test x"${SBD_SYNC_RESOURCE_STARTUP_DEFAULT}" = x""; then
-    SBD_SYNC_RESOURCE_STARTUP_DEFAULT=no
+    SBD_SYNC_RESOURCE_STARTUP_DEFAULT=yes
 fi
 AC_SUBST(SBD_SYNC_RESOURCE_STARTUP_DEFAULT)
 dnl rather pass to C as a string and interpret there for consistent interpretation
@@ -340,7 +340,7 @@ AC_DEFINE_UNQUOTED(SBD_SYNC_RESOURCE_STARTUP_DEFAULT, "${SBD_SYNC_RESOURCE_START
     Default for SBD_SYNC_RESOURCE_STARTUP if not given in SBD configuration file explicitly)
 
 if test x"${SBD_SYNC_RESOURCE_STARTUP_SYSCONFIG}" = x""; then
-    SBD_SYNC_RESOURCE_STARTUP_SYSCONFIG=no
+    SBD_SYNC_RESOURCE_STARTUP_SYSCONFIG=${SBD_SYNC_RESOURCE_STARTUP_DEFAULT}
 fi
 AC_SUBST(SBD_SYNC_RESOURCE_STARTUP_SYSCONFIG)
 
