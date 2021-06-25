@@ -40,9 +40,8 @@ bool sync_resource_startup = false;
 int parse_device_line(const char *line);
 
 static const char *
-get_env_option(const char *option)
+sanitize_option_value(const char *value)
 {
-	const char *value = getenv(option);
 	size_t max = 0;
 	size_t lpc = 0;
 
@@ -59,6 +58,14 @@ get_env_option(const char *option)
 	}
 
 	return (strlen(value + lpc) > 0 ? (value + lpc) : NULL);
+}
+
+static const char *
+get_env_option(const char *option)
+{
+	const char *value = getenv(option);
+
+	return sanitize_option_value(value);
 }
 
 static int
