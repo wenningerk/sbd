@@ -20,7 +20,7 @@
 %global modified %(echo %{longcommit}-|cut -f2 -d-)
 %global github_owner Clusterlabs
 %global commit_counter 0
-%global build_counter 1
+%global build_counter 0
 %global buildnum %(expr %{commit_counter} + %{build_counter})
 
 %ifarch s390x s390

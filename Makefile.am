@@ -73,8 +73,8 @@ spec:
 		sed -i 's/global\ build_counter.*/global\ build_counter\ $(COUNT)/' $(distdir)/$(PACKAGE).spec; \
 		echo $(COUNT) > $(BUILD_COUNTER); \
 	fi
-	if [ -n $(COMMIT_COUNTER) ]; then \
-		sed -i 's/global\ commit_counter.*/global\ commit_counter\ $(COMMIT_COUNTER)-1/' $(distdir)/$(PACKAGE).spec; \
+	if [ -n "$(COMMIT_COUNTER)" ]; then \
+		sed -i 's/global\ commit_counter.*/global\ commit_counter\ $(COMMIT_COUNTER)/' $(distdir)/$(PACKAGE).spec; \
 	fi
 
 srpm:	export spec
