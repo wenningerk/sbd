@@ -997,10 +997,6 @@ int main(int argc, char **argv, char **envp)
                 }
             }
         }
-        cl_log(LOG_DEBUG, "Delay start: %s%s%s",
-               delay_start? "yes (" : "no",
-               delay_start? (delay > 0 ? value: "msgwait") : "",
-               delay_start? ")" : "");
 
         value = get_env_option("SBD_TIMEOUT_ACTION");
         if(value) {
@@ -1307,37 +1303,53 @@ int main(int argc, char **argv, char **envp)
         } else if (strcmp(argv[optind], "ping") == 0) {
             exit_status = ping_via_slots(argv[optind + 1], servants_leader);
 
-        } else if (strcmp(argv[optind], "watch") == 0) {
-                if(disk_count > 0) {
-                    /* If no devices are specified, its not an error to be unable to find one */
-                    open_any_device(servants_leader);
-                }
-
-                if (delay_start) {
-                    if (delay <= 0) {
-                        delay = get_first_msgwait(servants_leader);
-                    }
-
-                    sleep((unsigned long) delay);
-                }
-
-	} else {
-		exit_status = -2;
-	}
+        } else
 #endif
-
-        /* Re-calculate timeout_watchdog_warn based on any timeout_watchdog from:
-         * SBD_WATCHDOG_TIMEOUT, -1 option or on-disk setting read with open_any_device() */
-        if (do_calculate_timeout_watchdog_warn) {
-            timeout_watchdog_warn = calculate_timeout_watchdog_warn(timeout_watchdog);
-        }
-
         if (strcmp(argv[optind], "query-watchdog") == 0) {
             exit_status = watchdog_info();
         } else if (strcmp(argv[optind], "test-watchdog") == 0) {
             exit_status = watchdog_test();
         } else if (strcmp(argv[optind], "watch") == 0) {
             /* sleep $(sbd $SBD_DEVICE_ARGS dump | grep -m 1 msgwait | awk '{print $4}') 2>/dev/null */
+
+                const char *delay_source = delay ? "SBD_DELAY_START" : "";
+
+#if SUPPORT_SHARED_DISK
+                if(disk_count > 0) {
+                    /* If no devices are specified, its not an error to be unable to find one */
+                    open_any_device(servants_leader);
+
+                    if (delay_start && delay <= 0) {
+                        delay = get_first_msgwait(servants_leader);
+
+                        if (delay > 0) {
+                            delay_source = "msgwait";
+                        } else {
+                            cl_log(LOG_WARNING, "No 'msgwait' value from disk, using '2 * watchdog-timeout' for 'delay' starting");
+                        }
+                    }
+                }
+#endif
+                /* Re-calculate timeout_watchdog_warn based on any timeout_watchdog from:
+                 * SBD_WATCHDOG_TIMEOUT, -1 option or on-disk setting read with open_any_device() */
+                if (do_calculate_timeout_watchdog_warn) {
+                    timeout_watchdog_warn = calculate_timeout_watchdog_warn(timeout_watchdog);
+                }
+
+                if (delay_start) {
+                    /* diskless mode or disk read issues causing get_first_msgwait() to return a 0 for delay */
+                    if (delay <= 0) {
+                        delay = 2 * timeout_watchdog;
+                        delay_source = "watchdog-timeout * 2";
+                    }
+
+                    cl_log(LOG_DEBUG, "Delay start (yes), (delay: %ld), (delay source: %s)", delay, delay_source);
+
+                    sleep((unsigned long) delay);
+
+                } else {
+                    cl_log(LOG_DEBUG, "Delay start (no)");
+                }
 
                 /* We only want this to have an effect during watch right now;
                  * pinging and fencing would be too confused */
@@ -1357,6 +1369,8 @@ int main(int argc, char **argv, char **envp)
                 cl_log(LOG_NOTICE, "%s flush + write \'%c\' to sysrq in case of timeout",
                        do_flush?"Do":"Skip", timeout_sysrq_char);
                 exit_status = inquisitor();
+        } else {
+            exit_status = -2;
         }
         
   out:
