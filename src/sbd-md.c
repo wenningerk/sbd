@@ -90,6 +90,7 @@ static void
 close_device(struct sbd_context *st)
 {
 	close(st->devfd);
+	free(st->buffer);
 	free(st);
 }
 
@@ -132,6 +133,12 @@ open_device(const char* devname, int loglevel)
 		return NULL;
 	}
 
+	if (posix_memalign(&st->buffer, sector_size, sector_size)) {
+		cl_perror("Couldn't allocate sector-buffer.");
+		close_device(st);
+		return NULL;
+	}
+
 	return st;
 }
 
@@ -140,11 +147,10 @@ sector_alloc(void)
 {
 	void *x;
 
-	x = valloc(sector_size);
+	x = calloc(1, sector_size);
 	if (!x) {
 		exit(1);
 	}
-	memset(x, 0, sector_size);
 
 	return x;
 }
@@ -162,9 +168,11 @@ sector_io(struct sbd_context *st, int sector, void *data, int rw)
 
 	memset(&st->io, 0, sizeof(struct iocb));
 	if (rw) {
-		io_prep_pwrite(&st->io, st->devfd, data, sector_size, (long long) sector_size * sector);
+		memcpy(st->buffer, data, sector_size);
+		io_prep_pwrite(&st->io, st->devfd, st->buffer, sector_size, (long long) sector_size * sector);
 	} else {
-		io_prep_pread(&st->io, st->devfd, data, sector_size, (long long) sector_size * sector);
+		memset(st->buffer, 0, sector_size);
+		io_prep_pread(&st->io, st->devfd, st->buffer, sector_size, (long long) sector_size * sector);
 	}
 
 	if (io_submit(st->ioctx, 1, ios) != 1) {
@@ -179,7 +187,7 @@ sector_io(struct sbd_context *st, int sector, void *data, int rw)
 		cl_log(LOG_ERR, "Failed to retrieve IO events (rw=%d)", rw);
 		return -1;
 	} else if (r < 1L) {
-		cl_log(LOG_INFO, "Cancelling IO request due to timeout (rw=%d)", rw);
+		cl_log(LOG_INFO, "Cancelling IO request due to timeout (rw=%d, r=%ld)", rw, r);
 		r = io_cancel(st->ioctx, ios[0], &event);
 		if (r) {
 			DBGLOG(LOG_INFO, "Could not cancel IO request (rw=%d)", rw);
@@ -195,6 +203,9 @@ sector_io(struct sbd_context *st, int sector, void *data, int rw)
 	
 	/* IO is happy */
 	if (event.res == sector_size) {
+		if (!rw) {
+			memcpy(data, st->buffer, sector_size);
+		}
 		return 0;
 	} else {
 		cl_log(LOG_ERR, "Short IO (rw=%d, res=%lu, sector_size=%d)",
