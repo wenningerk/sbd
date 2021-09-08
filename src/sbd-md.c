@@ -339,11 +339,13 @@ header_get(struct sbd_context *st)
 
 	if (header_read(st, s_header) < 0) {
 		cl_log(LOG_ERR, "Unable to read header from device %d", st->devfd);
+		free(s_header);
 		return NULL;
 	}
 
 	if (valid_header(s_header) < 0) {
 		cl_log(LOG_ERR, "header on device %d is not valid.", st->devfd);
+		free(s_header);
 		return NULL;
 	}
 
@@ -381,6 +383,8 @@ header_dump(struct sbd_context *st)
 			(unsigned long)s_header->timeout_loop);
 	printf("Timeout (msgwait)  : %lu\n",
 			(unsigned long)s_header->timeout_msgwait);
+
+	free(s_header);
 	return 0;
 }
 
@@ -933,6 +937,7 @@ get_first_msgwait(struct servants_list_item *servants)
         if (s_header != NULL) {
             msgwait = (unsigned long)s_header->timeout_msgwait;
             close_device(st);
+            free(s_header);
             return msgwait;
         }
 
@@ -1098,13 +1103,15 @@ int servant_md(const char *diskname, int mode, const void* argp)
 	s_header = header_get(st);
 	if (!s_header) {
 		cl_log(LOG_ERR, "Not a valid header on %s", diskname);
-		exit(EXIT_MD_SERVANT_IO_FAIL);
+		rc = EXIT_MD_SERVANT_IO_FAIL;
+		goto out;
 	}
 
 	if (servant_check_timeout_inconsistent(s_header) < 0) {
 		cl_log(LOG_ERR, "Timeouts on %s do not match first device",
 				diskname);
-		exit(EXIT_MD_SERVANT_IO_FAIL);
+		rc = EXIT_MD_SERVANT_IO_FAIL;
+		goto out;
 	}
 
 	if (s_header->minor_version > 0) {
@@ -1124,7 +1131,8 @@ int servant_md(const char *diskname, int mode, const void* argp)
 	if (slot_read(st, mbox, s_node) < 0) {
 		cl_log(LOG_ERR, "Unable to read node entry on %s",
 				diskname);
-		exit(EXIT_MD_SERVANT_IO_FAIL);
+		rc = EXIT_MD_SERVANT_IO_FAIL;
+		goto out;
 	}
 
 	cl_log(LOG_NOTICE, "Monitoring slot %d on disk %s", mbox, diskname);
@@ -1185,28 +1193,36 @@ int servant_md(const char *diskname, int mode, const void* argp)
 		s_header_retry = header_get(st);
 		if (!s_header_retry) {
 			cl_log(LOG_ERR, "No longer found a valid header on %s", diskname);
-			exit(EXIT_MD_SERVANT_IO_FAIL);
+			rc = EXIT_MD_SERVANT_IO_FAIL;
+			goto out;
 		}
 		if (memcmp(s_header, s_header_retry, sizeof(*s_header)) != 0) {
 			cl_log(LOG_ERR, "Header on %s changed since start-up!", diskname);
-			exit(EXIT_MD_SERVANT_IO_FAIL);
+			free(s_header_retry);
+			rc = EXIT_MD_SERVANT_IO_FAIL;
+			goto out;
 		}
 		free(s_header_retry);
 
 		s_node_retry = sector_alloc();
 		if (slot_read(st, mbox, s_node_retry) < 0) {
 			cl_log(LOG_ERR, "slot read failed in servant.");
-			exit(EXIT_MD_SERVANT_IO_FAIL);
+			free(s_node_retry);
+			rc = EXIT_MD_SERVANT_IO_FAIL;
+			goto out;
 		}
 		if (memcmp(s_node, s_node_retry, sizeof(*s_node)) != 0) {
 			cl_log(LOG_ERR, "Node entry on %s changed since start-up!", diskname);
-			exit(EXIT_MD_SERVANT_IO_FAIL);
+			free(s_node_retry);
+			rc = EXIT_MD_SERVANT_IO_FAIL;
+			goto out;
 		}
 		free(s_node_retry);
 
 		if (mbox_read(st, mbox, s_mbox) < 0) {
 			cl_log(LOG_ERR, "mbox read failed in servant.");
-			exit(EXIT_MD_SERVANT_IO_FAIL);
+			rc = EXIT_MD_SERVANT_IO_FAIL;
+			goto out;
 		}
 
 		if (s_mbox->cmd > 0) {
@@ -1221,14 +1237,17 @@ int servant_md(const char *diskname, int mode, const void* argp)
 				sigqueue(ppid, SIG_TEST, signal_value);
 				break;
 			case SBD_MSG_RESET:
-				exit(EXIT_MD_SERVANT_REQUEST_RESET);
+				rc = EXIT_MD_SERVANT_REQUEST_RESET;
+				goto out;
 			case SBD_MSG_OFF:
-				exit(EXIT_MD_SERVANT_REQUEST_SHUTOFF);
+				rc = EXIT_MD_SERVANT_REQUEST_SHUTOFF;
+				goto out;
 			case SBD_MSG_EXIT:
 				sigqueue(ppid, SIG_EXITREQ, signal_value);
 				break;
 			case SBD_MSG_CRASHDUMP:
-				exit(EXIT_MD_SERVANT_REQUEST_CRASHDUMP);
+				rc = EXIT_MD_SERVANT_REQUEST_CRASHDUMP;
+				goto out;
 			default:
 				/* FIXME:
 				   An "unknown" message might result
@@ -1257,6 +1276,8 @@ int servant_md(const char *diskname, int mode, const void* argp)
 		}
 	}
  out:
+	free(s_header);
+	free(s_node);
 	free(s_mbox);
 	close_device(st);
 	exit(rc);
