@@ -92,6 +92,9 @@ close_device(struct sbd_context *st)
 	if (!st) {
 		return;
 	}
+	if (st->ioctx) {
+		io_destroy(st->ioctx);
+	}
 	if (st->devfd >= 0) {
 		close(st->devfd);
 	}
