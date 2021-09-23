@@ -89,7 +89,12 @@ char2cmd(const char cmd)
 static void
 close_device(struct sbd_context *st)
 {
-	close(st->devfd);
+	if (!st) {
+		return;
+	}
+	if (st->devfd >= 0) {
+		close(st->devfd);
+	}
 	free(st->buffer);
 	free(st);
 }
@@ -102,15 +107,15 @@ open_device(const char* devname, int loglevel)
 	if (!devname)
 		return NULL;
 
-	st = malloc(sizeof(struct sbd_context));
-	if (!st)
+	st = calloc(1, sizeof(struct sbd_context));
+	if (!st) {
 		return NULL;
-	memset(st, 0, sizeof(struct sbd_context));
+	}
+	st->devfd = -1;
 
 	if (io_setup(1, &st->ioctx) != 0) {
 		cl_perror("io_setup failed");
-		free(st);
-		return NULL;
+		goto out;
 	}
 	
 	st->devfd = open(devname, O_SYNC|O_RDWR|O_DIRECT);
@@ -121,25 +126,26 @@ open_device(const char* devname, int loglevel)
 		} else {
 			cl_log(loglevel, "Opening device %s failed.", devname);
 		}
-		free(st);
-		return NULL;
+		goto out;
 	}
 
 	ioctl(st->devfd, BLKSSZGET, &sector_size);
 
 	if (sector_size == 0) {
 		cl_perror("Get sector size failed.\n");
-		close_device(st);
-		return NULL;
+		goto out;
 	}
 
 	if (posix_memalign(&st->buffer, sector_size, sector_size)) {
 		cl_perror("Couldn't allocate sector-buffer.");
-		close_device(st);
-		return NULL;
+		goto out;
 	}
 
 	return st;
+
+out:
+	close_device(st);
+	return NULL;
 }
 
 static void *
