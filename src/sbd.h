@@ -108,6 +108,7 @@ struct sbd_context {
 	int	devfd;
 	io_context_t	ioctx;
 	struct iocb	io;
+	void *buffer;
 };
 
 enum pcmk_health 

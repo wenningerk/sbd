@@ -63,6 +63,7 @@ typedef int (*orig_close_f_type)(int fd);
 typedef FILE *(*orig_fopen_f_type)(const char *pathname, const char *mode);
 typedef int (*orig_fclose_f_type)(FILE *fp);
 typedef int (*orig_io_setup_f_type)(int nr_events, io_context_t *ctx_idp);
+typedef int (*orig_io_destroy_f_type)(io_context_t ctx_id);
 typedef int (*orig_io_submit_f_type)(io_context_t ctx_id, long nr, struct iocb *ios[]);
 typedef int (*orig_io_getevents_f_type)(io_context_t ctx_id, long min_nr, long nr,
                 struct io_event *events, struct timespec *timeout);
@@ -93,6 +94,7 @@ static orig_close_f_type orig_close = NULL;
 static orig_fopen_f_type orig_fopen = NULL;
 static orig_fclose_f_type orig_fclose = NULL;
 static orig_io_setup_f_type orig_io_setup = NULL;
+static orig_io_destroy_f_type orig_io_destroy = NULL;
 static orig_io_submit_f_type orig_io_submit = NULL;
 static orig_io_getevents_f_type orig_io_getevents = NULL;
 static orig_io_cancel_f_type orig_io_cancel = NULL;
@@ -158,6 +160,7 @@ init (void)
             exit(1);
         }
         orig_io_setup     = (orig_io_setup_f_type)dlsym_fatal(handle,"io_setup");
+        orig_io_destroy   = (orig_io_destroy_f_type)dlsym_fatal(handle,"io_destroy");
         orig_io_submit    = (orig_io_submit_f_type)dlsym_fatal(handle,"io_submit");
         orig_io_getevents = (orig_io_getevents_f_type)dlsym_fatal(handle,"io_getevents");
         orig_io_cancel    = (orig_io_cancel_f_type)dlsym_fatal(handle,"io_cancel");
@@ -625,6 +628,19 @@ int io_setup(int nr_events, io_context_t *ctx_idp)
     return 0;
 }
 
+int io_destroy(io_context_t ctx_id)
+{
+    init();
+
+    if (!translate_aio) {
+        return orig_io_destroy(ctx_id);
+    }
+
+    if (ctx_id != &our_io_context) {
+        return EINVAL;
+    }
+    return 0;
+}
 
 int io_submit(io_context_t ctx_id, long nr, struct iocb *ios[])
 {
