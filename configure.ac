@@ -164,6 +164,15 @@ AC_ARG_WITH(configdir,
     [ CONFIGDIR="$withval" ]
 )
 
+dnl --runstatedir is available as of autoconf 2.70 (2020-12-08). When users
+dnl have an older version, they can use our --with-runstatedir.
+sbd_runstatedir=""
+AC_ARG_WITH([runstatedir],
+    [AS_HELP_STRING([--with-runstatedir=DIR],
+        [modifiable per-process data @<:@LOCALSTATEDIR/run@:>@ (ignored if --runstatedir is available)])],
+    [ sbd_runstatedir="$withval" ]
+)
+
 SBD_WATCHDOG_TIMEOUT_DEFAULT=""
 AC_ARG_WITH(watchdog-timeout-default,
     [  --with-watchdog-timeout-default=SECONDS
@@ -309,6 +318,16 @@ eval includedir="`eval echo ${includedir}`"
 eval oldincludedir="`eval echo ${oldincludedir}`"
 eval infodir="`eval echo ${infodir}`"
 eval mandir="`eval echo ${mandir}`"
+
+if [ test "x${runstatedir}" = "x" ]; then
+    if [ test "x${sbd_runstatedir}" = "x" ]; then
+        runstatedir="${localstatedir}/run"
+    else
+        runstatedir="${sbd_runstatedir}"
+    fi
+fi
+eval runstatedir="$(eval echo ${runstatedir})"
+AC_SUBST(runstatedir)
 
 AC_SUBST(LIBADD_DL)        dnl extra flags for dynamic linking libraries
 

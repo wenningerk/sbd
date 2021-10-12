@@ -8,9 +8,9 @@ RefuseManualStart=true
 
 [Service]
 Type=forking
-PIDFile=@localstatedir@/run/sbd.pid
+PIDFile=@runstatedir@/sbd.pid
 EnvironmentFile=-@CONFIGDIR@/sbd
-ExecStart=@sbindir@/sbd $SBD_OPTS -p @localstatedir@/run/sbd.pid watch
+ExecStart=@sbindir@/sbd $SBD_OPTS -p @runstatedir@/sbd.pid watch
 ExecStop=@bindir@/kill -TERM $MAINPID
 
 # Could this benefit from exit codes for restart?

@@ -60,7 +60,7 @@ fi
 SBD_DEVS=${SBD_DEVICE%;}
 SBD_DEVICE_ARGS="-d ${SBD_DEVS//;/ -d }"
 
-: ${SBD_PIDFILE:=/var/run/sbd.pid}
+: ${SBD_PIDFILE:=@runstatedir@/sbd.pid}
 SBD_OPTS+=" -p $SBD_PIDFILE"
 : ${SBD_PACEMAKER:="true"}
 if ocf_is_true "$SBD_PACEMAKER" ; then

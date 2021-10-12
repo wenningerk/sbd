@@ -109,7 +109,8 @@ regression-testing sbd.
 export CFLAGS="$RPM_OPT_FLAGS -Wall -Werror"
 %configure --with-watchdog-timeout-default=%{watchdog_timeout_default} \
            --with-sync-resource-startup-default=%{?with_sync_resource_startup_default:yes}%{!?with_sync_resource_startup_default:no}  \
-           --with-sync-resource-startup-sysconfig=%{sync_resource_startup_sysconfig}
+           --with-sync-resource-startup-sysconfig=%{sync_resource_startup_sysconfig} \
+           --with-runstatedir=%{_rundir}
 make %{?_smp_mflags}
 ###########################################################
 
