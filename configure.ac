@@ -30,6 +30,34 @@ m4_ifdef([AM_SILENT_RULES],[AM_SILENT_RULES([no])])
 AM_INIT_AUTOMAKE(1.11.1 foreign TESTS_OPTION)
 AM_PROG_CC_C_O
 
+# expand_path_option $path_variable_name $default
+expand_path_option() {
+    # The first argument is the variable *name* (not value)
+    ac_path_varname="$1"
+
+    # Get the original value of the variable
+    ac_path_value=$(eval echo "\${${ac_path_varname}}")
+
+    # Expand any literal variable expressions in the value so that we don't
+    # end up with something like '${prefix}' in #defines etc.
+    #
+    # Autoconf deliberately leaves values unexpanded to allow overriding
+    # the configure script choices in make commands (for example,
+    # "make exec_prefix=/foo install"). No longer being able to do this seems
+    # like no great loss.
+    eval ac_path_value=$(eval echo "${ac_path_value}")
+
+    # Use (expanded) default if necessary
+    AS_IF([test x"${ac_path_value}" = x""],
+	  [eval ac_path_value=$(eval echo "$2")])
+
+    # Require a full path
+    AS_CASE(["$ac_path_value"],
+            [/*], [eval ${ac_path_varname}="$ac_path_value"],
+            [*], [AC_MSG_ERROR([$ac_path_varname value "$ac_path_value" is not a full path])]
+    )
+}
+
 PKG_CHECK_MODULES(glib, [glib-2.0])
 PKG_CHECK_MODULES(libxml, [libxml-2.0])
 
@@ -298,42 +326,29 @@ case $exec_prefix in
   prefix) exec_prefix=$prefix;;
 esac
 
-dnl Expand autoconf variables so that we dont end up with '${prefix}'
-dnl in #defines and python scripts
-dnl NOTE: Autoconf deliberately leaves them unexpanded to allow
-dnl    make exec_prefix=/foo install
-dnl No longer being able to do this seems like no great loss to me...
+dnl Expand values of autoconf-provided directory options
+expand_path_option prefix
+expand_path_option exec_prefix
+expand_path_option bindir
+expand_path_option sbindir
+expand_path_option libexecdir
+expand_path_option datadir
+expand_path_option sysconfdir
+expand_path_option sharedstatedir
+expand_path_option localstatedir
+expand_path_option libdir
+expand_path_option includedir
+expand_path_option oldincludedir
+expand_path_option infodir
+expand_path_option mandir
 
-eval prefix="`eval echo ${prefix}`"
-eval exec_prefix="`eval echo ${exec_prefix}`"
-eval bindir="`eval echo ${bindir}`"
-eval sbindir="`eval echo ${sbindir}`"
-eval libexecdir="`eval echo ${libexecdir}`"
-eval datadir="`eval echo ${datadir}`"
-eval sysconfdir="`eval echo ${sysconfdir}`"
-eval sharedstatedir="`eval echo ${sharedstatedir}`"
-eval localstatedir="`eval echo ${localstatedir}`"
-eval libdir="`eval echo ${libdir}`"
-eval includedir="`eval echo ${includedir}`"
-eval oldincludedir="`eval echo ${oldincludedir}`"
-eval infodir="`eval echo ${infodir}`"
-eval mandir="`eval echo ${mandir}`"
-
-if [ test "x${runstatedir}" = "x" ]; then
-    if [ test "x${sbd_runstatedir}" = "x" ]; then
-        runstatedir="${localstatedir}/run"
-    else
-        runstatedir="${sbd_runstatedir}"
-    fi
-fi
-eval runstatedir="$(eval echo ${runstatedir})"
+AS_IF([test x"${runstatedir}" = x""], [runstatedir="${sbd_runstatedir}"])
+expand_path_option runstatedir "${localstatedir}/run"
 AC_SUBST(runstatedir)
 
 AC_SUBST(LIBADD_DL)        dnl extra flags for dynamic linking libraries
 
-if test x"${CONFIGDIR}" = x""; then
-    CONFIGDIR="${sysconfdir}/sysconfig"
-fi
+expand_path_option CONFIGDIR "${sysconfdir}/sysconfig"
 AC_SUBST(CONFIGDIR)
 
 if test x"${SBD_WATCHDOG_TIMEOUT_DEFAULT}" = x""; then
