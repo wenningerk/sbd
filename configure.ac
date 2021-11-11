@@ -28,6 +28,7 @@ AC_CONFIG_AUX_DIR(.)
 AC_CONFIG_HEADERS(config.h)
 m4_ifdef([AM_SILENT_RULES],[AM_SILENT_RULES([no])])
 AM_INIT_AUTOMAKE(1.11.1 foreign TESTS_OPTION)
+LT_INIT([dlopen],[disable-static])
 AM_PROG_CC_C_O
 
 # expand_path_option $path_variable_name $default
@@ -379,9 +380,7 @@ fi
 AC_SUBST(SBD_SYNC_RESOURCE_STARTUP_SYSCONFIG)
 
 dnl The Makefiles and shell scripts we output
-AC_CONFIG_FILES([Makefile src/Makefile agent/Makefile man/Makefile agent/sbd src/sbd.service src/sbd_remote.service src/sbd.sh src/sbd.sysconfig sbd.pc])
-
-AC_CONFIG_SUBDIRS([tests])
+AC_CONFIG_FILES([Makefile src/Makefile agent/Makefile man/Makefile tests/Makefile agent/sbd src/sbd.service src/sbd_remote.service src/sbd.sh src/sbd.sysconfig sbd.pc])
 
 dnl Now process the entire list of files added by previous 
 dnl  calls to AC_CONFIG_FILES()
