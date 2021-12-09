@@ -198,7 +198,7 @@ dnl have an older version, they can use our --with-runstatedir.
 sbd_runstatedir=""
 AC_ARG_WITH([runstatedir],
     [AS_HELP_STRING([--with-runstatedir=DIR],
-        [modifiable per-process data @<:@LOCALSTATEDIR/run@:>@ (ignored if --runstatedir is available)])],
+        [modifiable per-process data @<:@LOCALSTATEDIR/run@:>@])],
     [ sbd_runstatedir="$withval" ]
 )
 
@@ -343,7 +343,13 @@ expand_path_option oldincludedir
 expand_path_option infodir
 expand_path_option mandir
 
-AS_IF([test x"${runstatedir}" = x""], [runstatedir="${sbd_runstatedir}"])
+AS_IF([test x"${runstatedir}" = x""], [runstatedir="${sbd_runstatedir}"],
+      [test x"${sbd_runstatedir}" != x""], [
+      echo "--with-runstatedir=${sbd_runstatedir} is taking precedence"
+      echo "over runstatedir=${runstatedir}."
+      echo "Consider using --runstatedir=${sbd_runstatedir} directly or let it"
+      echo "go with the default."
+      runstatedir="${sbd_runstatedir}"])
 expand_path_option runstatedir "${localstatedir}/run"
 AC_SUBST(runstatedir)
 
