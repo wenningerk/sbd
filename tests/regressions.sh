@@ -28,8 +28,9 @@
 # - Can the unit/service file be tested? or at least the wrapper?
 
 : ${SBD_BINARY:="/usr/sbin/sbd"}
-: ${SBD_PRELOAD="libsbdtestbed.so"}
+: ${SBD_PRELOAD:="libsbdtestbed.so"}
 : ${SBD_USE_DM:="yes"}
+: ${SBD_TRANSLATE_AIO:= "no"}
 
 sbd() {
 	LD_PRELOAD=${SBD_PRELOAD} SBD_DEVICE="${SBD_DEVICE}" SBD_PRELOAD_LOG=${SBD_PRELOAD_LOG} SBD_WATCHDOG_DEV=/dev/watchdog setsid ${SBD_BINARY} -p ${SBD_PIDFILE} "$@"
@@ -40,9 +41,19 @@ sbd_wipe_disk() {
 }
 
 sbd_setup() {
-	trap sbd_teardown EXIT
+	trap 'sbd_teardown $?' EXIT
+	trap 'sbd_teardown 134' ABRT
+	trap 'sbd_teardown 131' QUIT
+	trap 'sbd_teardown 143' TERM
+	trap 'sbd_teardown 130' INT
+	trap "sbd_teardown 1" ERR
+	if [[ -d /dev/shm ]]; then
+		SBD_IMGPATH=/dev/shm
+	else
+		SBD_IMGPATH=/tmp
+	fi
 	for N in $(seq 3) ; do
-		F[$N]=$(mktemp /tmp/sbd.device.$N.XXXXXX)
+		F[$N]=$(mktemp ${SBD_IMGPATH}/sbd.device.$N.XXXXXX)
 		sbd_wipe_disk ${F[$N]}
 		if [[ "${SBD_USE_DM}" == "yes" ]]; then
 			R[$N]=$(echo ${F[$N]}|cut -f4 -d.)
@@ -66,6 +77,8 @@ sbd_setup() {
 }
 
 sbd_teardown() {
+	# disable traps prior to cleanup to avoid loops
+	trap '' EXIT ABRT QUIT TERM INT ERR
 	for N in $(seq 3) ; do
 		if [[ "${SBD_USE_DM}" == "yes" ]]; then
 			dmsetup remove sbd_${N}_${R[$N]}
@@ -76,6 +89,25 @@ sbd_teardown() {
 		rm -f ${SBD_PIDFILE}
 		rm -f ${SBD_PRELOAD_LOG}
 	done
+	# now that everything should be clean
+	# return to original handlers to terminate
+	# as requested
+	trap - EXIT ABRT QUIT TERM INT ERR
+	if [[ $1 -eq 134 ]]; then
+		echo "Received SIGABRT!!!"
+		kill -ABRT $$
+	elif [[ $1 -eq 131 ]]; then
+		echo "Received SIGQUIT!!!"
+		kill -QUIT $$
+	elif [[ $1 -eq 143 ]]; then
+		echo "Received SIGTERM!!!"
+		kill -TERM $$
+	elif [[ $1 -eq 130 ]]; then
+		echo "Received SIGINT!!!"
+		kill -INT $$
+	else
+		exit $1
+	fi
 }
 
 sbd_dev_fail() {
@@ -97,12 +129,16 @@ sbd_dev_resume() {
 }
 
 sbd_daemon_cleanup() {
-	echo > ${SBD_PRELOAD_LOG}
-	pkill -TERM --pidfile ${SBD_PIDFILE} 2>/dev/null
-	sleep 5
-	pkill -KILL --pidfile ${SBD_PIDFILE} 2>/dev/null
-	pkill -KILL --parent "$(cat ${SBD_PIDFILE} 2>/dev/null)" 2>/dev/null
-	echo > ${SBD_PIDFILE}
+	if [[ "${SBD_PRELOAD_LOG}" != "" ]]; then
+		echo > ${SBD_PRELOAD_LOG}
+	fi
+	if [[ "${SBD_PIDFILE}" != "" ]]; then
+		pkill -TERM --pidfile ${SBD_PIDFILE} 2>/dev/null
+		sleep 5
+		pkill -KILL --pidfile ${SBD_PIDFILE} 2>/dev/null
+		pkill -KILL --parent "$(cat ${SBD_PIDFILE} 2>/dev/null)" 2>/dev/null
+		echo > ${SBD_PIDFILE}
+	fi
 }
 
 _ok() {
@@ -316,6 +352,11 @@ test_timeout_action2() {
 	sleep $((${MSGWAIT_TIMEOUT} + ${WATCHDOG_TIMEOUT} * 2))
 	_in_log "sysrq-trigger ('c')"
 }
+
+echo "SBD_BINARY = \"${SBD_BINARY}\""
+echo "SBD_PRELOAD = \"${SBD_PRELOAD}\""
+echo "SBD_USE_DM = \"${SBD_USE_DM}\""
+echo "SBD_TRANSLATE_AIO = \"${SBD_TRANSLATE_AIO}"\"
 
 sbd_setup
 
