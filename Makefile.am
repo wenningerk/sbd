@@ -31,7 +31,8 @@ COMMIT_COUNTER	?= $(shell git describe --tags --long --always --match v$(SPEC_VE
 TESTS           = tests/regressions.sh
 export SBD_BINARY := src/sbd
 export SBD_PRELOAD := tests/.libs/libsbdtestbed.so
-export SBD_USE_DM := no
+export SBD_USE_DM ?= no
+export SBD_TRANSLATE_AIO ?= no
 
 EXTRA_DIST      = sbd.spec tests/regressions.sh man/sbd.8.pod.in
 
