@@ -593,9 +593,9 @@ slot_list(struct sbd_context *st)
 		}
 	}
 
-out:	free(s_node);
+out:	free(s_mbox);
+	free(s_node);
 	free(s_header);
-	free(s_mbox);
 	return rc;
 }
 
