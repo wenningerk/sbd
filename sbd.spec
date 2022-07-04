@@ -63,7 +63,7 @@ BuildRequires:  glib2-devel
 BuildRequires:  libaio-devel
 BuildRequires:  corosync-devel
 %if 0%{?suse_version}
-BuildRequires:  libpacemaker-devel
+BuildRequires:  libpacemaker3-devel
 %else
 BuildRequires:  pacemaker-libs-devel
 %endif
