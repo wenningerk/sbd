@@ -28,7 +28,7 @@ C<command> parameter; some of these modes take additional parameters.
 
 To use SBD with shared storage, you must first C<create> the messaging
 layout on one to three block devices. Second, configure
-F</etc/sysconfig/sbd> to list those devices (and possibly adjust other
+F<@configdir@/sbd> to list those devices (and possibly adjust other
 options), and restart the cluster stack on each node to ensure that
 C<sbd> is started. Third, configure the C<external/sbd> fencing
 resource in the Pacemaker CIB.
@@ -181,7 +181,7 @@ C<sbd> B<must> be started on boot before the cluster stack! See below
 for enabling this according to your boot environment.
 
 The options for this mode are rarely specified directly on the
-commandline directly, but most frequently set via F</etc/sysconfig/sbd>.
+commandline directly, but most frequently set via F<@configdir@/sbd>.
 
 It also constantly monitors connectivity to the storage device, and
 self-fences in case the partition becomes unreachable, guaranteeing that it
@@ -560,7 +560,7 @@ without SBD supervision.
 
 =head2 Configuration via sysconfig
 
-The system instance of C<sbd> is configured via F</etc/sysconfig/sbd>.
+The system instance of C<sbd> is configured via F<@configdir@/sbd>.
 In this file, you must specify the device(s) used, as well as any
 options to pass to the daemon:
 
@@ -593,7 +593,7 @@ The node will acknowledge the receipt of the message in the system logs:
 This confirms that SBD is indeed up and running on the node, and that it
 is ready to receive messages.
 
-Make B<sure> that F</etc/sysconfig/sbd> is identical on all cluster
+Make B<sure> that F<@configdir@/sbd> is identical on all cluster
 nodes, and that all cluster nodes are running the daemon.
 
 =head1 Pacemaker CIB integration
@@ -608,7 +608,7 @@ follows:
 		params pcmk_delay_max=30
 
 This will automatically use the same devices as configured in
-F</etc/sysconfig/sbd>.
+F<@configdir@/sbd>.
 
 While you should not configure this as a clone (as Pacemaker will register
 the fencing device on each node automatically), the I<pcmk_delay_max>
