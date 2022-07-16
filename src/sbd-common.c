@@ -118,6 +118,62 @@ usage(void)
                 , cmdname);
 }
 
+#define MAX_WATCHDOGS 64
+#define SYS_CLASS_WATCHDOG "/sys/class/watchdog"
+#define SYS_CHAR_DEV_DIR "/sys/dev/char"
+#define WATCHDOG_NODEDIR "/dev/"
+
+static bool
+is_watchdog(dev_t device)
+{
+    static int num_watchdog_devs = 0;
+    static dev_t watchdog_devs[MAX_WATCHDOGS];
+    struct dirent *entry;
+    int i;
+
+    /* populate on first call */
+    if (num_watchdog_devs == 0) {
+        DIR *dp;
+
+        watchdog_devs[0] = makedev(10,130);
+        num_watchdog_devs = 1;
+
+        /* get additional devices from /sys/class/watchdog */
+        dp = opendir(SYS_CLASS_WATCHDOG);
+        if (dp) {
+            while ((entry = readdir(dp))) {
+                if (entry->d_type == DT_LNK) {
+                    FILE *file;
+                    char entry_name[NAME_MAX+sizeof(SYS_CLASS_WATCHDOG)+5];
+
+                    snprintf(entry_name, sizeof(entry_name),
+                        SYS_CLASS_WATCHDOG "/%s/dev", entry->d_name);
+                    file = fopen(entry_name, "r");
+                    if (file) {
+                        int major, minor;
+
+                        if (fscanf(file, "%d:%d", &major, &minor) == 2) {
+                            watchdog_devs[num_watchdog_devs++] = makedev(major, minor);
+                        }
+                        fclose(file);
+                        if (num_watchdog_devs == MAX_WATCHDOGS) {
+                            break;
+                        }
+                    }
+                }
+            }
+            closedir(dp);
+        }
+    }
+
+    for (i=0; i < num_watchdog_devs; i++) {
+        if (device == watchdog_devs[i]) {
+            return true;
+        }
+    }
+    return false;
+}
+
 static int
 watchdog_init_interval_fd(int wdfd, int timeout)
 {
@@ -173,20 +229,27 @@ watchdog_tickle(void)
 static int
 watchdog_init_fd(char *wddev, int timeout)
 {
-	int wdfd;
+    int wdfd;
 
-	wdfd = open(wddev, O_WRONLY);
-	if (wdfd >= 0) {
-		if (((timeout >= 0) && (watchdog_init_interval_fd(wdfd, timeout) < 0))
-					|| (watchdog_tickle_fd(wdfd, wddev) < 0)) {
-			close(wdfd);
-			return -1;
-		}
-	} else {
-		cl_perror("Cannot open watchdog device '%s'", wddev);
-		return -1;
-	}
-	return wdfd;
+    wdfd = open(wddev, O_WRONLY);
+    if (wdfd >= 0) {
+        if (((timeout >= 0) && (watchdog_init_interval_fd(wdfd, timeout) < 0)) ||
+            (watchdog_tickle_fd(wdfd, wddev) < 0)) {
+            close(wdfd);
+            return -1;
+        }
+    } else {
+        struct stat statbuf;
+
+        if(!stat(wddev, &statbuf) && S_ISCHR(statbuf.st_mode) &&
+           is_watchdog(statbuf.st_rdev)) {
+            cl_perror("Cannot open watchdog device '%s'", wddev);
+        } else {
+            cl_perror("Seems as if '%s' isn't a valid watchdog-device", wddev);
+        }
+        return -1;
+    }
+    return wdfd;
 }
 
 int
@@ -250,17 +313,13 @@ watchdog_close(bool disarm)
     watchdogfd = -1;
 }
 
-#define MAX_WATCHDOGS 64
-#define SYS_CLASS_WATCHDOG "/sys/class/watchdog"
-#define SYS_CHAR_DEV_DIR "/sys/dev/char"
-#define WATCHDOG_NODEDIR "/dev/"
-#define WATCHDOG_NODEDIR_LEN 5
-
 struct watchdog_list_item {
 	dev_t dev;
 	char *dev_node;
 	char *dev_ident;
 	char *dev_driver;
+	pid_t busy_pid;
+	char *busy_name;
 	struct watchdog_list_item *next;
 };
 
@@ -276,184 +335,223 @@ static int watchdog_list_items = 0;
 static void
 watchdog_populate_list(void)
 {
-	dev_t watchdogs[MAX_WATCHDOGS + 1] =
-		{makedev(10,130), 0};
-	int num_watchdogs = 1;
-	struct dirent *entry;
-	char entry_name[280];
-	DIR *dp;
-	char buf[280] = "";
-	struct link_list_item *link_list = NULL;
+    struct dirent *entry;
+    char entry_name[sizeof(WATCHDOG_NODEDIR)+NAME_MAX];
+    DIR *dp;
+    char buf[NAME_MAX+sizeof(WATCHDOG_NODEDIR)] = "";
+    struct link_list_item *link_list = NULL;
 
-	if (watchdog_list != NULL) {
-		return;
-	}
+    if (watchdog_list != NULL) {
+        return;
+    }
 
-	/* get additional devices from /sys/class/watchdog */
-	dp = opendir(SYS_CLASS_WATCHDOG);
-	if (dp) {
-		while ((entry = readdir(dp))) {
-			if (entry->d_type == DT_LNK) {
-				FILE *file;
+    /* search for watchdog nodes in /dev */
+    dp = opendir(WATCHDOG_NODEDIR);
+    if (dp) {
+        /* first go for links and memorize them */
+        while ((entry = readdir(dp))) {
+            if (entry->d_type == DT_LNK) {
+                int len;
 
-				snprintf(entry_name, sizeof(entry_name),
-						 SYS_CLASS_WATCHDOG "/%s/dev", entry->d_name);
-				file = fopen(entry_name, "r");
-				if (file) {
-					int major, minor;
+                snprintf(entry_name, sizeof(entry_name),
+                         WATCHDOG_NODEDIR "%s", entry->d_name);
 
-					if (fscanf(file, "%d:%d", &major, &minor) == 2) {
-						watchdogs[num_watchdogs++] = makedev(major, minor);
-					}
-					fclose(file);
-					if (num_watchdogs == MAX_WATCHDOGS) {
-						break;
-					}
-				}
-			}
-		}
-		closedir(dp);
-	}
+                /* realpath(entry_name, buf) unfortunately does a stat on
+                 * target so we can't really use it to check if links stay
+                 * within /dev without triggering e.g. AVC-logs (with
+                 * SELinux policy that just allows stat within /dev).
+                 * Without canonicalization that doesn't actually touch the
+                 * filesystem easily available introduce some limitations
+                 * for simplicity:
+                 * - just simple path without '..'
+                 * - just one level of symlinks (avoid e.g. loop-checking)
+                 */
+                len = readlink(entry_name, buf, sizeof(buf) - 1);
+                if ((len < 1) ||
+                    (len > sizeof(buf) - sizeof(WATCHDOG_NODEDIR) -1 - 1)) {
+                    continue;
+                }
+                buf[len] = '\0';
+                if (buf[0] != '/') {
+                    memmove(&buf[sizeof(WATCHDOG_NODEDIR)-1], buf, len+1);
+                    memcpy(buf, WATCHDOG_NODEDIR, sizeof(WATCHDOG_NODEDIR)-1);
+                    len += sizeof(WATCHDOG_NODEDIR)-1;
+                }
+                if (strstr(buf, "/../") ||
+                    strncmp(WATCHDOG_NODEDIR, buf, sizeof(WATCHDOG_NODEDIR)-1)) {
+                    continue;
+                } else {
+                    /* just memorize to avoid statting the target - SELinux */
+                    struct link_list_item *lli =
+                        calloc(1, sizeof(struct link_list_item));
 
-	/* search for watchdog nodes in /dev */
-	dp = opendir(WATCHDOG_NODEDIR);
-	if (dp) {
-		/* first go for links and memorize them */
-		while ((entry = readdir(dp))) {
-			if (entry->d_type == DT_LNK) {
-				int len;
+                    lli->dev_node = strdup(buf);
+                    lli->link_name = strdup(entry_name);
+                    lli->next = link_list;
+                    link_list = lli;
+                }
+            }
+        }
 
-				snprintf(entry_name, sizeof(entry_name),
-				         WATCHDOG_NODEDIR "%s", entry->d_name);
+        rewinddir(dp);
 
-				/* !realpath(entry_name, buf) unfortunately does a stat on
-				 * target so we can't really use it to check if links stay
-				 * within /dev without triggering e.g. AVC-logs (with
-				 * SELinux policy that just allows stat within /dev).
-				 * Without canonicalization that doesn't actually touch the
-				 * filesystem easily available introduce some limitations
-				 * for simplicity:
-				 * - just simple path without '..'
-				 * - just one level of symlinks (avoid e.g. loop-checking)
-				 */
-				len = readlink(entry_name, buf, sizeof(buf) - 1);
-				if ((len < 1) ||
-				    (len > sizeof(buf) - WATCHDOG_NODEDIR_LEN - 1)) {
-					continue;
-				}
-				buf[len] = '\0';
-				if (buf[0] != '/') {
-					memmove(&buf[WATCHDOG_NODEDIR_LEN], buf, len+1);
-					memcpy(buf, WATCHDOG_NODEDIR, WATCHDOG_NODEDIR_LEN);
-					len += WATCHDOG_NODEDIR_LEN;
-				}
-				if (strstr(buf, "/../") ||
-				    strncmp(WATCHDOG_NODEDIR, buf, WATCHDOG_NODEDIR_LEN)) {
-					continue;
-				} else {
-					/* just memorize to avoid statting the target - SELinux */
-					struct link_list_item *lli =
-						calloc(1, sizeof(struct link_list_item));
+        while ((entry = readdir(dp))) {
+            if (entry->d_type == DT_CHR) {
+                struct stat statbuf;
 
-					lli->dev_node = strdup(buf);
-					lli->link_name = strdup(entry_name);
-					lli->next = link_list;
-					link_list = lli;
-				}
-			}
-		}
+                snprintf(entry_name, sizeof(entry_name),
+                            WATCHDOG_NODEDIR "%s", entry->d_name);
+                if(!stat(entry_name, &statbuf) && S_ISCHR(statbuf.st_mode) &&
+                   is_watchdog(statbuf.st_rdev)) {
 
-		rewinddir(dp);
+                    int wdfd = watchdog_init_fd(entry_name, -1);
+                    struct watchdog_list_item *wdg =
+                        calloc(1, sizeof(struct watchdog_list_item));
+                    int len;
+                    struct link_list_item *tmp_list = NULL;
 
-		while ((entry = readdir(dp))) {
-			if (entry->d_type == DT_CHR) {
-				struct stat statbuf;
+                    wdg->dev = statbuf.st_rdev;
+                    wdg->dev_node = strdup(entry_name);
+                    wdg->next = watchdog_list;
+                    watchdog_list = wdg;
+                    watchdog_list_items++;
 
-				snprintf(entry_name, sizeof(entry_name),
-				         WATCHDOG_NODEDIR "%s", entry->d_name);
-				if(!stat(entry_name, &statbuf) && S_ISCHR(statbuf.st_mode)) {
-					int i;
+                    if (wdfd >= 0) {
+                        struct watchdog_info ident;
 
-					for (i=0; i<num_watchdogs; i++) {
-						if (statbuf.st_rdev == watchdogs[i]) {
-							int wdfd = watchdog_init_fd(entry_name, -1);
-							struct watchdog_list_item *wdg =
-								calloc(1, sizeof(struct watchdog_list_item));
-							int len;
-							struct link_list_item *tmp_list = NULL;
+                        ident.identity[0] = '\0';
+                        ioctl(wdfd, WDIOC_GETSUPPORT, &ident);
+                        watchdog_close_fd(wdfd, entry_name, true);
+                        if (ident.identity[0]) {
+                            wdg->dev_ident = strdup((char *) ident.identity);
+                        }
+                    }
 
-							wdg->dev = watchdogs[i];
-							wdg->dev_node = strdup(entry_name);
-							wdg->next = watchdog_list;
-							watchdog_list = wdg;
-							watchdog_list_items++;
+                    snprintf(entry_name, sizeof(entry_name),
+                                SYS_CHAR_DEV_DIR "/%d:%d/device/driver",
+                                major(wdg->dev), minor(wdg->dev));
+                    len = readlink(entry_name, buf, sizeof(buf) - 1);
+                    if (len > 0) {
+                        buf[len] = '\0';
+                        wdg->dev_driver = strdup(basename(buf));
+                    } else if ((wdg->dev_ident) &&
+                               (strcmp(wdg->dev_ident,
+                                       "Software Watchdog") == 0)) {
+                        wdg->dev_driver = strdup("softdog");
+                    }
 
-							if (wdfd >= 0) {
-								struct watchdog_info ident;
+                    /* create dupes if we have memorized links
+                     * to this node
+                     */
+                    for (tmp_list = link_list; tmp_list;
+                            tmp_list = tmp_list->next) {
+                        if (!strcmp(tmp_list->dev_node,
+                                    wdg->dev_node)) {
+                            struct watchdog_list_item *dupe_wdg =
+                                calloc(1, sizeof(struct watchdog_list_item));
 
-								ident.identity[0] = '\0';
-								ioctl(wdfd, WDIOC_GETSUPPORT, &ident);
-								watchdog_close_fd(wdfd, entry_name, true);
-								if (ident.identity[0]) {
-									wdg->dev_ident = strdup((char *) ident.identity);
-								}
-							}
+                            /* as long as we never purge watchdog_list
+                             * there is no need to dupe strings
+                             */
+                            *dupe_wdg = *wdg;
+                            dupe_wdg->dev_node = strdup(tmp_list->link_name);
+                            dupe_wdg->next = watchdog_list;
+                            watchdog_list = dupe_wdg;
+                            watchdog_list_items++;
+                        }
+                        /* for performance reasons we could remove
+                         * the link_list entry
+                         */
+                    }
+                }
+            }
+        }
 
-							snprintf(entry_name, sizeof(entry_name),
-							         SYS_CHAR_DEV_DIR "/%d:%d/device/driver",
-							         major(watchdogs[i]), minor(watchdogs[i]));
-							len = readlink(entry_name, buf, sizeof(buf) - 1);
-							if (len > 0) {
-								buf[len] = '\0';
-								wdg->dev_driver = strdup(basename(buf));
-							} else if ((wdg->dev_ident) &&
-							           (strcmp(wdg->dev_ident,
-							                   "Software Watchdog") == 0)) {
-								wdg->dev_driver = strdup("softdog");
-							}
+        closedir(dp);
+    }
 
-							/* create dupes if we have memorized links
-							 * to this node
-							 */
-							for (tmp_list = link_list; tmp_list;
-							     tmp_list = tmp_list->next) {
-								if (!strcmp(tmp_list->dev_node,
-								            wdg->dev_node)) {
-									struct watchdog_list_item *dupe_wdg =
-										calloc(1, sizeof(struct watchdog_list_item));
+    /* cleanup link list */
+    while (link_list) {
+        struct link_list_item *tmp_list = link_list;
 
-									/* as long as we never purge watchdog_list
-									 * there is no need to dupe strings
-									 */
-									*dupe_wdg = *wdg;
-									dupe_wdg->dev_node = strdup(tmp_list->link_name);
-									dupe_wdg->next = watchdog_list;
-									watchdog_list = dupe_wdg;
-									watchdog_list_items++;
-								}
-								/* for performance reasons we could remove
-								 * the link_list entry
-								 */
-							}
-							break;
-						}
-					}
-				}
-			}
-		}
+        link_list = link_list->next;
+        free(tmp_list->dev_node);
+        free(tmp_list->link_name);
+        free(tmp_list);
+    }
+}
 
-		closedir(dp);
-	}
+static void
+watchdog_checkbusy()
+{
+    DIR *dproc;
+    struct dirent *entry;
 
-	/* cleanup link list */
-	while (link_list) {
-		struct link_list_item *tmp_list = link_list;
+    dproc = opendir("/proc");
+    if (!dproc) {
+        /* no proc directory to search through */
+        return;
+    }
 
-		link_list = link_list->next;
-		free(tmp_list->dev_node);
-		free(tmp_list->link_name);
-		free(tmp_list);
-	}
+    while ((entry = readdir(dproc)) != NULL) {
+        pid_t local_pid;
+        char *leftover;
+        DIR *dpid;
+        char procpath[NAME_MAX+10] = { 0 };
+
+        if (entry->d_name[0] == '.') {
+            continue;
+        }
+
+        local_pid = strtol(entry->d_name, &leftover, 10);
+        if (leftover[0] != '\0')
+            continue;
+
+        snprintf(procpath, sizeof(procpath), "/proc/%s/fd", entry->d_name);
+        dpid = opendir(procpath);
+        if (!dpid) {
+            /* silently continue - might be just a race */
+            continue;
+        }
+        while ((entry = readdir(dpid)) != NULL) {
+            struct watchdog_list_item *wdg;
+            char entry_name[sizeof(procpath)+NAME_MAX+1] = { 0 };
+            char buf[NAME_MAX+1] = { 0 };
+            int len;
+
+            if (entry->d_type != DT_LNK) {
+                continue;
+            }
+            snprintf(entry_name, sizeof(entry_name),
+                     "%s/%s", procpath, entry->d_name);
+            len = readlink(entry_name, buf, sizeof(buf) - 1);
+            if (len < 1) {
+                continue;
+            }
+            buf[len] = '\0';
+            for (wdg = watchdog_list; wdg != NULL; wdg = wdg->next) {
+                if (!strcmp(buf, wdg->dev_node)) {
+                    char name[16];
+                    FILE *file;
+
+                    wdg->busy_pid = local_pid;
+                    snprintf(procpath, sizeof(procpath), "/proc/%d/status", local_pid);
+                    file = fopen(procpath, "r");
+                    if (file) {
+                        if (fscanf(file, "Name:\t%15[a-zA-Z0-9 _-]", name) == 1) {
+                            wdg->busy_name = strdup(name);
+                        }
+                        fclose(file);
+                    }
+                }
+            }
+        }
+        closedir(dpid);
+    }
+
+    closedir(dproc);
+
+    return;
 }
 
 int watchdog_info(void)
@@ -462,13 +560,23 @@ int watchdog_info(void)
 	int wdg_cnt = 0;
 
 	watchdog_populate_list();
+	watchdog_checkbusy();
 	printf("\nDiscovered %d watchdog devices:\n", watchdog_list_items);
 	for (wdg = watchdog_list; wdg != NULL; wdg = wdg->next) {
 		wdg_cnt++;
-		printf("\n[%d] %s\nIdentity: %s\nDriver: %s\n",
+		if (wdg->busy_pid) {
+			printf("\n[%d] %s\nIdentity: Busy: PID %d (%s)\nDriver: %s\n",
 				wdg_cnt, wdg->dev_node,
-				wdg->dev_ident?wdg->dev_ident:"Error: Check if hogged by e.g. sbd-daemon!",
+				wdg->busy_pid,
+				wdg->busy_name?wdg->busy_name:"<unknown>",
 				wdg->dev_driver?wdg->dev_driver:"<unknown>");
+		} else {
+			printf("\n[%d] %s\nIdentity: %s\nDriver: %s\n",
+				wdg_cnt, wdg->dev_node,
+				wdg->dev_ident?wdg->dev_ident:
+					"Error: device hogged via alias major/minor?",
+				wdg->dev_driver?wdg->dev_driver:"<unknown>");
+		}
 		if ((wdg->dev_driver) && (strcmp(wdg->dev_driver, "softdog") == 0)) {
 			printf("CAUTION: Not recommended for use with sbd.\n"); 
 		}
@@ -512,6 +620,7 @@ int watchdog_test(void)
 		watchdogdev, (int) timeout_watchdog);
 	if ((watchdog_init() < 0) || (watchdog_init_interval() < 0)) {
 		printf("Failed to initialize watchdog!!!\n");
+		watchdog_info();
 		return -1;
 	}
 	printf("\n");
