@@ -1289,7 +1289,7 @@ int main(int argc, char **argv, char **envp)
             goto out;
         }
 #else
-        if (!sync_resource_startup) {
+        if (check_pcmk && !sync_resource_startup) {
             cl_log(LOG_WARNING, "SBD built against pacemaker supporting "
                              "pacemakerd-API. Should think about enabling "
                              "SBD_SYNC_RESOURCE_STARTUP.");
