@@ -950,7 +950,7 @@ int main(int argc, char **argv, char **envp)
             check_pcmk = crm_is_true(value);
             check_cluster = crm_is_true(value);
         }
-        cl_log(LOG_INFO, "Enable pacemaker checks: %d (%s)", (int)check_pcmk, value?value:"default");
+        cl_log(LOG_INFO, "SBD_PACEMAKER set to: %d (%s)", (int)check_pcmk, value?value:"default");
 
         value = get_env_option("SBD_STARTMODE");
         if(value == NULL) {
