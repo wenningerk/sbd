@@ -25,6 +25,7 @@ static struct servants_list_item *servants_leader = NULL;
 int     disk_priority = 1;
 int	check_pcmk = 1;
 int	check_cluster = 1;
+int	has_check_pcmk_env = false;
 int	disk_count	= 0;
 int	servant_count	= 0;
 int	servant_restart_interval = 5;
@@ -949,6 +950,8 @@ int main(int argc, char **argv, char **envp)
         if(value) {
             check_pcmk = crm_is_true(value);
             check_cluster = crm_is_true(value);
+
+            has_check_pcmk_env = true;
         }
         cl_log(LOG_INFO, "SBD_PACEMAKER set to: %d (%s)", (int)check_pcmk, value?value:"default");
 
@@ -1202,7 +1205,17 @@ int main(int argc, char **argv, char **envp)
 	}
 
 	if (P_count > 0) {
-		check_pcmk = arg_enabled(P_count);
+		int check_pcmk_arg = arg_enabled(P_count);
+
+		if (has_check_pcmk_env && check_pcmk_arg != check_pcmk) {
+			cl_log(LOG_WARNING, "Pacemaker integration is %s: "
+					"SBD_PACEMAKER=%s is overridden by %s option. "
+					"It's recommended to only use SBD_PACEMAKER.",
+					check_pcmk_arg? "enabled" : "disabled",
+					check_pcmk? "yes" : "no",
+					check_pcmk_arg? "-P" : "-PP");
+		}
+		check_pcmk = check_pcmk_arg;
 	}
 
 	if ((disk_count > 0) && (strlen(local_uname) > SECTOR_NAME_MAX)) {
