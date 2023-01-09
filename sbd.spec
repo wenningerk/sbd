@@ -51,7 +51,7 @@ Name:           sbd
 Summary:        Storage-based death
 License:        GPLv2+
 Group:          System Environment/Daemons
-Version:        1.5.1
+Version:        1.5.2
 Release:        99.%{buildnum}.%{shortcommit}.%{modified}git%{?dist}
 Url:            https://github.com/%{github_owner}/%{name}
 Source0:        https://github.com/%{github_owner}/%{name}/archive/%{longcommit}/%{name}-%{longcommit}.tar.gz
@@ -177,6 +177,34 @@ rm -rf %{buildroot}
 %{_libdir}/libsbdtestbed*
 
 %changelog
+* Thu Jan 5 2023 <klaus.wenninger@aon.at> - 1.5.2-99.0.8ec8e011.git
+- fail startup if pacemaker integration is disabled while
+  SBD_SYNC_RESOURCE_STARTUP is conflicting (+ hint to overcome)
+- improve logs
+  - when logging state of SBD_PACEMAKER tell it is just that as
+    this might still be overridden via cmdline options
+  - log a warning if SBD_PACEMAKER is overridden by -P or -PP option
+  - do not warn about startup syncing with pacemaker integration disabled
+  - when watchdog-device is busy give a hint on who is hogging it
+- improve build environment
+  - have --with-runstatedir overrule --runstatedir
+  - use new package name for pacemaker devel on opensuse
+  - make config location configurable for man-page-creation
+  - reverse alloc/de-alloc order to make gcc-12 static analysis happy
+- improve test environment
+  - have image-files in /dev/shm to assure they are in memory and
+    sbd opening the files with O_SYNC doesn't trigger unnecessary
+    syncs on a heavily loaded test-machine
+    fallback to /tmp if /dev/shm doesn't exist
+  - wrapping away libaio and usage of device-mapper for block-device
+    simulation can now be passed into make via
+    SBD_USE_DM & SBD_TRANSLATE_AIO
+  - have variables that configure test-environment be printed
+    out prior to running tests
+  - finally assure we clean environment when interrupted by a
+    signal (bash should have done it with just setting EXIT handler -
+    but avoiding bashism might come handy one day)
+
 * Mon Nov 15 2021 <klaus.wenninger@aon.at> - 1.5.1-99.0.7bcdf695.git
 - improve/fix cmdline handling
   - tell the actual watchdog device specified with -w
