@@ -441,9 +441,9 @@ init_device(struct sbd_context *st)
 		}
 	}
 
-out:	free(s_node);
+out:	free(s_mbox);
+	free(s_node);
 	free(s_header);
-	free(s_mbox);
 	return(rc);
 }
 
@@ -556,9 +556,9 @@ slot_allocate(struct sbd_context *st, const char *name)
 		}
 	}
 
-out:	free(s_node);
+out:	free(s_mbox);
+	free(s_node);
 	free(s_header);
-	free(s_mbox);
 	return(rc);
 }
 
@@ -1279,11 +1279,10 @@ int servant_md(const char *diskname, int mode, const void* argp)
 		}
 	}
  out:
-	free(s_header);
 	free(s_node);
 	free(s_mbox);
+	free(s_header);
 	close_device(st);
 	exit(rc);
 }
-
 
