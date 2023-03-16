@@ -49,7 +49,7 @@
 
 Name:           sbd
 Summary:        Storage-based death
-License:        GPLv2+
+License:        GPL-2.0-or-later
 Group:          System Environment/Daemons
 Version:        1.5.2
 Release:        99.%{buildnum}.%{shortcommit}.%{modified}git%{?dist}
@@ -95,7 +95,7 @@ Available rpmbuild rebuild options:
 
 %package tests
 Summary:        Storage-based death environment for regression tests
-License:        GPLv2+
+License:        GPL-2.0-or-later
 Group:          System Environment/Daemons
 
 %description tests
