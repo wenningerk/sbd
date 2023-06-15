@@ -1,0 +1,2 @@
+Fabbione is gonna be moving CI to the pipelines-plugin during 2023-06-15.
+it will generate some spam on the PRs and old PRs will need to be rebased on top of the latest
