@@ -170,7 +170,7 @@ sector_io(struct sbd_context *st, int sector, void *data, int rw)
 	struct timespec	timeout;
 	struct io_event event;
 	struct iocb	*ios[1] = { &st->io };
-	long		r;
+	int    r;
 
 	timeout.tv_sec  = timeout_io;
 	timeout.tv_nsec = 0;
@@ -195,8 +195,8 @@ sector_io(struct sbd_context *st, int sector, void *data, int rw)
 	if (r < 0 ) {
 		cl_log(LOG_ERR, "Failed to retrieve IO events (rw=%d)", rw);
 		return -1;
-	} else if (r < 1L) {
-		cl_log(LOG_INFO, "Cancelling IO request due to timeout (rw=%d, r=%ld)", rw, r);
+	} else if (r < 1) {
+		cl_log(LOG_INFO, "Cancelling IO request due to timeout (rw=%d, r=%d)", rw, r);
 		r = io_cancel(st->ioctx, ios[0], &event);
 		if (r) {
 			DBGLOG(LOG_INFO, "Could not cancel IO request (rw=%d)", rw);
@@ -204,8 +204,8 @@ sector_io(struct sbd_context *st, int sector, void *data, int rw)
 			 */
 		}
 		return -1;
-	} else if (r > 1L) {
-		cl_log(LOG_ERR, "More than one IO was returned (r=%ld)", r);
+	} else if (r > 1) {
+		cl_log(LOG_ERR, "More than one IO was returned (r=%d)", r);
 		return -1;
 	}
 
