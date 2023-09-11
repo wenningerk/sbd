@@ -190,11 +190,10 @@ int check_all_dead(void)
 {
 	struct servants_list_item *s;
 	int r = 0;
-	union sigval svalue;
 
 	for (s = servants_leader; s; s = s->next) {
 		if (s->pid != 0) {
-			r = sigqueue(s->pid, 0, svalue);
+			r = sigqueue_zero(s->pid, 0);
 			if (r == -1 && errno == ESRCH)
 				continue;
 			return 0;
@@ -206,10 +205,9 @@ int check_all_dead(void)
 void servant_start(struct servants_list_item *s)
 {
 	int r = 0;
-	union sigval svalue;
 
 	if (s->pid != 0) {
-		r = sigqueue(s->pid, 0, svalue);
+		r = sigqueue_zero(s->pid, 0);
 		if ((r != -1 || errno != ESRCH))
 			return;
 	}
@@ -251,11 +249,11 @@ void servants_start(void)
 void servants_kill(void)
 {
 	struct servants_list_item *s;
-	union sigval svalue;
 
 	for (s = servants_leader; s; s = s->next) {
-		if (s->pid != 0)
-			sigqueue(s->pid, SIGKILL, svalue);
+		if (s->pid != 0) {
+			sigqueue_zero(s->pid, SIGKILL);
+		}
 	}
 }
 
@@ -280,7 +278,6 @@ static inline void cleanup_servant_by_pid(pid_t pid)
 int inquisitor_decouple(void)
 {
 	pid_t ppid = getppid();
-	union sigval signal_value;
 
 	/* During start-up, we only arm the watchdog once we've got
 	 * quorum at least once. */
@@ -291,7 +288,7 @@ int inquisitor_decouple(void)
 	}
 
 	if (ppid > 1) {
-		sigqueue(ppid, SIG_LIVENESS, signal_value);
+		sigqueue_zero(ppid, SIG_LIVENESS);
 	}
 	return 0;
 }

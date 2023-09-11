@@ -1257,13 +1257,20 @@ sbd_set_format_string(int method, const char *daemon)
     }
 }
 
+int sigqueue_zero(pid_t pid, int sig)
+{
+union sigval signal_value;
+
+    memset(&signal_value, 0, sizeof(signal_value));
+
+    return sigqueue(pid, sig, signal_value);
+}
+
 void
 notify_parent(void)
 {
     pid_t		ppid;
-    union sigval	signal_value;
 
-    memset(&signal_value, 0, sizeof(signal_value));
     ppid = getppid();
 
     if (ppid == 1) {
@@ -1284,17 +1291,17 @@ notify_parent(void)
         case pcmk_health_unclean:
         case pcmk_health_noquorum:
             DBGLOG(LOG_WARNING, "Notifying parent: UNHEALTHY (%d)", servant_health);
-            sigqueue(ppid, SIG_PCMK_UNHEALTHY, signal_value);
+            sigqueue_zero(ppid, SIG_PCMK_UNHEALTHY);
             break;
 
         case pcmk_health_online:
             DBGLOG(LOG_DEBUG, "Notifying parent: healthy");
-            sigqueue(ppid, SIG_LIVENESS, signal_value);
+            sigqueue_zero(ppid, SIG_LIVENESS);
             break;
 
         default:
             DBGLOG(LOG_WARNING, "Notifying parent: UNHEALTHY %d", servant_health);
-            sigqueue(ppid, SIG_PCMK_UNHEALTHY, signal_value);
+            sigqueue_zero(ppid, SIG_PCMK_UNHEALTHY);
             break;
     }
 }

@@ -1078,7 +1078,6 @@ int servant_md(const char *diskname, int mode, const void* argp)
 	int mbox;
 	int rc = 0;
 	time_t t0, t1, latency;
-	union sigval signal_value;
 	sigset_t servant_masks;
 	struct sbd_context *st;
 	pid_t ppid;
@@ -1159,7 +1158,7 @@ int servant_md(const char *diskname, int mode, const void* argp)
 				/* Not a clean stop. Abort start-up */
 				cl_log(LOG_WARNING, "Found fencing message - aborting start-up. Manual intervention required!");
 				ppid = getppid();
-				sigqueue(ppid, SIG_EXITREQ, signal_value);
+				sigqueue_zero(ppid, SIG_EXITREQ);
 				rc = 0;
 				goto out;
 			}
@@ -1171,8 +1170,6 @@ int servant_md(const char *diskname, int mode, const void* argp)
 			goto out;
 		}
 	}
-
-	memset(&signal_value, 0, sizeof(signal_value));
 
 	while (1) {
 		struct sector_header_s	*s_header_retry = NULL;
@@ -1237,7 +1234,7 @@ int servant_md(const char *diskname, int mode, const void* argp)
 			case SBD_MSG_TEST:
 				memset(s_mbox, 0, sizeof(*s_mbox));
 				mbox_write(st, mbox, s_mbox);
-				sigqueue(ppid, SIG_TEST, signal_value);
+				sigqueue_zero(ppid, SIG_TEST);
 				break;
 			case SBD_MSG_RESET:
 				rc = EXIT_MD_SERVANT_REQUEST_RESET;
@@ -1246,7 +1243,7 @@ int servant_md(const char *diskname, int mode, const void* argp)
 				rc = EXIT_MD_SERVANT_REQUEST_SHUTOFF;
 				goto out;
 			case SBD_MSG_EXIT:
-				sigqueue(ppid, SIG_EXITREQ, signal_value);
+				sigqueue_zero(ppid, SIG_EXITREQ);
 				break;
 			case SBD_MSG_CRASHDUMP:
 				rc = EXIT_MD_SERVANT_REQUEST_CRASHDUMP;
@@ -1264,7 +1261,7 @@ int servant_md(const char *diskname, int mode, const void* argp)
 				break;
 			}
 		}
-		sigqueue(ppid, SIG_LIVENESS, signal_value);
+		sigqueue_zero(ppid, SIG_LIVENESS);
 
 		t1 = time(NULL);
 		latency = t1 - t0;

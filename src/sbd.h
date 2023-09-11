@@ -139,6 +139,7 @@ pid_t make_daemon(void);
 void maximize_priority(void);
 void sbd_get_uname(void);
 void sbd_set_format_string(int method, const char *daemon);
+int sigqueue_zero(pid_t pid, int sig);
 void notify_parent(void);
 
 /* Tunable defaults: */
