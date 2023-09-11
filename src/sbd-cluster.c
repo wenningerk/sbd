@@ -146,7 +146,7 @@ sbd_cpg_membership_health_update()
                 set_servant_health(pcmk_health_noquorum, LOG_WARNING,
                     "Connected to %s but quorum using qdevice is distrusted "
                     "for SBD as qdevice-sync_timeout (%ds) > watchdog-timeout "
-                    "(%lus).",
+                    "(%us).",
                     name_for_cluster_type(get_cluster_type()),
                     qdevice_sync_timeout, timeout_watchdog
                     );
@@ -154,7 +154,7 @@ sbd_cpg_membership_health_update()
             }
 #endif
             set_servant_health(pcmk_health_online, LOG_INFO,
-                "Connected to %s (%u members)%s",
+                "Connected to %s (%d members)%s",
                 name_for_cluster_type(get_cluster_type()),
                 cpg_membership_entries,
 #if CHECK_QDEVICE_SYNC_TIMEOUT
@@ -710,9 +710,9 @@ find_pacemaker_remote(void)
         }
 
         /* entry_name is truncated to 16 characters including the nul terminator */
-        cl_log(LOG_DEBUG, "Found %s at %u", entry_name, pid);
+        cl_log(LOG_DEBUG, "Found %s at %d", entry_name, pid);
         if (strncmp(entry_name, PACEMAKER_REMOTE_BINARY, 15) == 0) {
-            cl_log(LOG_NOTICE, "Found Pacemaker Remote at PID %u", pid);
+            cl_log(LOG_NOTICE, "Found Pacemaker Remote at PID %d", pid);
             remoted_pid = pid;
             remote_node = true;
             break;

@@ -143,10 +143,10 @@ int sigqueue_zero(pid_t pid, int sig);
 void notify_parent(void);
 
 /* Tunable defaults: */
-extern unsigned long    timeout_watchdog;
-extern unsigned long    timeout_watchdog_warn;
-extern bool             do_calculate_timeout_watchdog_warn;
-extern unsigned long    timeout_watchdog_crashdump;
+extern int  timeout_watchdog;
+extern int  timeout_watchdog_warn;
+extern bool do_calculate_timeout_watchdog_warn;
+extern int  timeout_watchdog_crashdump;
 extern int      timeout_allocate;
 extern int      timeout_loop;
 extern int      timeout_msgwait;
@@ -216,5 +216,5 @@ bool sbd_is_cluster(struct servants_list_item *servant);
 
 #define calculate_timeout_watchdog_warn(timeout) \
 	(timeout < 5 ? 2 : \
-	(timeout < (ULONG_MAX / 3) ? \
-	(((unsigned long) timeout) * 3 / 5) : (((unsigned long) timeout) / 5 * 3)))
+	(timeout < (INT_MAX / 3) ? \
+	(((int) timeout) * 3 / 5) : (((int) timeout) / 5 * 3)))

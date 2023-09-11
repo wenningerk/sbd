@@ -489,7 +489,7 @@ void inquisitor_child(void)
 	int decoupled = 0;
 	int cluster_appeared = 0;
 	int pcmk_override = 0;
-	time_t latency;
+	int latency;
 	struct timespec t_last_tickle, t_now;
 	struct servants_list_item* s;
 
@@ -725,8 +725,8 @@ void inquisitor_child(void)
 
 		/* Note that this can actually be negative, since we set
 		 * last_tickle after we set now. */
-		latency = t_now.tv_sec - t_last_tickle.tv_sec;
-		if (timeout_watchdog && (latency > (int)timeout_watchdog)) {
+		latency = (int) (t_now.tv_sec - t_last_tickle.tv_sec);
+		if (timeout_watchdog && (latency > timeout_watchdog)) {
 			if (!decoupled) {
 				/* We're still being watched by our
 				 * parent. We don't fence, but exit. */
@@ -745,10 +745,10 @@ void inquisitor_child(void)
 			}
 		}
 
-		if (timeout_watchdog_warn && (latency > (int)timeout_watchdog_warn)) {
+		if (timeout_watchdog_warn && (latency > timeout_watchdog_warn)) {
 			cl_log(LOG_WARNING,
 			       "Latency: No liveness for %ds exceeds watchdog warning timeout of %ds (healthy servants: %d)",
-			       (int)latency, (int)timeout_watchdog_warn, good_servants);
+			       latency, timeout_watchdog_warn, good_servants);
 
                         if (debug_mode && watchdog_use) {
                             /* In debug mode, trigger a reset before the watchdog can panic the machine */
@@ -1110,7 +1110,7 @@ int main(int argc, char **argv, char **envp)
 		case 'C':
 			timeout_watchdog_crashdump = sanitized_num_optarg;
 			cl_log(LOG_INFO, "Setting crashdump watchdog timeout to %d",
-					(int)timeout_watchdog_crashdump);
+					timeout_watchdog_crashdump);
 			break;
 		case '1':
 			timeout_watchdog = sanitized_num_optarg;
@@ -1128,7 +1128,7 @@ int main(int argc, char **argv, char **envp)
 			timeout_watchdog_warn = sanitized_num_optarg;
 			do_calculate_timeout_watchdog_warn = false;
 			cl_log(LOG_INFO, "Setting latency warning to %d",
-					(int)timeout_watchdog_warn);
+					timeout_watchdog_warn);
 			break;
 		case 't':
 			servant_restart_interval = sanitized_num_optarg;

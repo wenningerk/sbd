@@ -35,10 +35,10 @@
 #endif
 
 /* Tunable defaults: */
-unsigned long	timeout_watchdog 	= SBD_WATCHDOG_TIMEOUT_DEFAULT;
-int		timeout_msgwait		= 2 * SBD_WATCHDOG_TIMEOUT_DEFAULT;
-unsigned long	timeout_watchdog_warn 	= calculate_timeout_watchdog_warn(SBD_WATCHDOG_TIMEOUT_DEFAULT);
-bool		do_calculate_timeout_watchdog_warn = true;
+int timeout_watchdog           = SBD_WATCHDOG_TIMEOUT_DEFAULT;
+int timeout_msgwait            = 2 * SBD_WATCHDOG_TIMEOUT_DEFAULT;
+int timeout_watchdog_warn      = calculate_timeout_watchdog_warn(SBD_WATCHDOG_TIMEOUT_DEFAULT);
+bool do_calculate_timeout_watchdog_warn = true;
 int		timeout_allocate 	= 2;
 int		timeout_loop	    	= 1;
 int		timeout_io		= 3;
@@ -46,7 +46,7 @@ int		timeout_startup		= 120;
 
 int	watchdog_use		= 1;
 int	watchdog_set_timeout	= 1;
-unsigned long	timeout_watchdog_crashdump = 0;
+int timeout_watchdog_crashdump = 0;
 int	skip_rt			= 0;
 int	debug			= 0;
 int	debug_mode		= 0;
@@ -179,7 +179,7 @@ watchdog_init_interval_fd(int wdfd, int timeout)
 {
 	if (ioctl(wdfd, WDIOC_SETTIMEOUT, &timeout) < 0) {
 		cl_perror( "WDIOC_SETTIMEOUT"
-				": Failed to set watchdog timer to %u seconds.",
+				": Failed to set watchdog timer to %d seconds.",
 				timeout);
 		cl_log(LOG_CRIT, "Please validate your watchdog configuration!");
 		cl_log(LOG_CRIT, "Choose a different watchdog driver or specify -T to skip this if you are completely sure.");
@@ -203,7 +203,7 @@ watchdog_init_interval(void)
 	if (watchdog_init_interval_fd(watchdogfd, timeout_watchdog) < 0) {
 		return -1;
 	}
-	cl_log(LOG_INFO, "Set watchdog timeout to %u seconds.", (int) timeout_watchdog);
+	cl_log(LOG_INFO, "Set watchdog timeout to %d seconds.", timeout_watchdog);
 	return 0;
 }
 
@@ -266,7 +266,7 @@ watchdog_init(void)
 		if (watchdogfd >= 0) {
 			cl_log(LOG_NOTICE, "Using watchdog device '%s'", watchdogdev);
 			if (watchdog_set_timeout) {
-				cl_log(LOG_INFO, "Set watchdog timeout to %u seconds.", (int) timeout_watchdog);
+				cl_log(LOG_INFO, "Set watchdog timeout to %d seconds.", timeout_watchdog);
 			}
 		} else {
 			return -1;
@@ -651,7 +651,7 @@ int watchdog_test(void)
 	printf("\n");
 	printf("NOTICE: The watchdog device is expected to reset the system\n"
 		   "        in %d seconds.  If system remains active beyond that time,\n"
-		   "        watchdog may not be functional.\n\n", (int) timeout_watchdog);
+		   "        watchdog may not be functional.\n\n", timeout_watchdog);
 	for (i=timeout_watchdog; i>1; i--) {
 		printf("Reset countdown ... %d seconds\n", i);
 		sleep(1);

@@ -1049,7 +1049,7 @@ static int servant_check_timeout_inconsistent(struct sector_header_s *hdr)
 {
 	if (timeout_watchdog != hdr->timeout_watchdog) {
 		cl_log(LOG_WARNING, "watchdog timeout: %d versus %d on this device",
-				(int)timeout_watchdog, (int)hdr->timeout_watchdog);
+				timeout_watchdog, (int)hdr->timeout_watchdog);
 		return -1;
 	}
 	if (timeout_allocate != hdr->timeout_allocate) {
@@ -1077,7 +1077,8 @@ int servant_md(const char *diskname, int mode, const void* argp)
 	struct sector_header_s	*s_header = NULL;
 	int mbox;
 	int rc = 0;
-	time_t t0, t1, latency;
+	time_t t0, t1;
+	int latency;
 	sigset_t servant_masks;
 	struct sbd_context *st;
 	pid_t ppid;
@@ -1264,14 +1265,14 @@ int servant_md(const char *diskname, int mode, const void* argp)
 		sigqueue_zero(ppid, SIG_LIVENESS);
 
 		t1 = time(NULL);
-		latency = t1 - t0;
+		latency = (int) (t1 - t0);
 		if (timeout_watchdog_warn && (latency > timeout_watchdog_warn)) {
 			cl_log(LOG_WARNING,
 			       "Latency: %ds exceeded watchdog warning timeout %ds on disk %s",
-			       (int)latency, (int)timeout_watchdog_warn,
+			       latency, timeout_watchdog_warn,
 			       diskname);
 		} else if (debug) {
-			DBGLOG(LOG_DEBUG, "Latency: %ds on disk %s", (int)latency,
+			DBGLOG(LOG_DEBUG, "Latency: %ds on disk %s", latency,
 			       diskname);
 		}
 	}
