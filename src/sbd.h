@@ -218,3 +218,6 @@ bool sbd_is_cluster(struct servants_list_item *servant);
 	(timeout < 5 ? 2 : \
 	(timeout < (INT_MAX / 3) ? \
 	(((int) timeout) * 3 / 5) : (((int) timeout) / 5 * 3)))
+
+int seconds_diff_time_t(time_t a, time_t b);
+int seconds_diff_timespec(struct timespec *a, struct timespec *b);

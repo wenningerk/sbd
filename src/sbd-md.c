@@ -1018,7 +1018,7 @@ void open_any_device(struct servants_list_item *servants)
 			}
 		}
 		clock_gettime(CLOCK_MONOTONIC, &t_now);
-		t_wait = t_now.tv_sec - t_0.tv_sec;
+		t_wait = seconds_diff_timespec(&t_now, &t_0);
 		if (!hdr_cur) {
 			sleep(timeout_loop);
 		}
@@ -1265,7 +1265,7 @@ int servant_md(const char *diskname, int mode, const void* argp)
 		sigqueue_zero(ppid, SIG_LIVENESS);
 
 		t1 = time(NULL);
-		latency = (int) (t1 - t0);
+		latency = seconds_diff_time_t(t1, t0);
 		if (timeout_watchdog_warn && (latency > timeout_watchdog_warn)) {
 			cl_log(LOG_WARNING,
 			       "Latency: %ds exceeded watchdog warning timeout %ds on disk %s",

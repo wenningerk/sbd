@@ -1360,3 +1360,35 @@ sbd_is_pcmk(struct servants_list_item *servant)
     }
     return false;
 }
+
+#define MAX_LEGITIMATE_AGE 3600 /* 1h should be plenty */
+
+int
+seconds_diff_time_t(time_t a, time_t b)
+{
+    long long diff;
+
+    diff = a - b;
+
+    if ((diff > -MAX_LEGITIMATE_AGE) && (diff < MAX_LEGITIMATE_AGE)) {
+        return (int) diff;
+    }
+
+    DBGLOG(LOG_WARNING, "Detected unreasonable age (%lld)", diff);
+    return MAX_LEGITIMATE_AGE; /* something is fishy - provoke timeout */
+}
+
+int
+seconds_diff_timespec(struct timespec *a, struct timespec *b)
+{
+    struct timeval diff;
+    struct timeval a_tv;
+    struct timeval b_tv;
+
+    TIMESPEC_TO_TIMEVAL(&a_tv, a);
+    TIMESPEC_TO_TIMEVAL(&b_tv, b);
+
+    timersub(&a_tv, &b_tv, &diff);
+
+    return seconds_diff_time_t(diff.tv_sec, 0);
+}

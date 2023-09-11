@@ -621,12 +621,12 @@ void inquisitor_child(void)
 
 		good_servants = 0;
 		for (s = servants_leader; s; s = s->next) {
-			int age = t_now.tv_sec - s->t_last.tv_sec;
+			int age = seconds_diff_timespec(&t_now, &(s->t_last));
 
 			if (!s->t_last.tv_sec)
 				continue;
 
-			if (age < (int)(timeout_io+timeout_loop)) {
+			if (age < timeout_io+timeout_loop) {
 				if (sbd_is_disk(s)) {
                                     good_servants++;
 				}
@@ -725,7 +725,7 @@ void inquisitor_child(void)
 
 		/* Note that this can actually be negative, since we set
 		 * last_tickle after we set now. */
-		latency = (int) (t_now.tv_sec - t_last_tickle.tv_sec);
+		latency = seconds_diff_timespec(&t_now, &t_last_tickle);
 		if (timeout_watchdog && (latency > timeout_watchdog)) {
 			if (!decoupled) {
 				/* We're still being watched by our
@@ -757,7 +757,7 @@ void inquisitor_child(void)
 		}
 
 		for (s = servants_leader; s; s = s->next) {
-			int age = t_now.tv_sec - s->t_started.tv_sec;
+			int age = seconds_diff_timespec(&t_now, &(s->t_started));
 
 			if (age > servant_restart_interval) {
 				s->restarts = 0;
