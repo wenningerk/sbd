@@ -893,7 +893,7 @@ parse_device_line(const char *line)
     return found;
 }
 
-#define SBD_SOURCE_FILES "sbd-cluster.c,sbd-common.c,sbd-inquisitor.c,sbd-md.c,sbd-pacemaker.c,setproctitle.c"
+#define SBD_SOURCE_FILES "sbd-cluster.c,sbd-common.c,sbd-inquisitor.c,sbd-md.c,sbd-pacemaker.c,sbd-watchdog.c,setproctitle.c"
 
 static void
 sbd_log_filter_ctl(const char *files, uint8_t priority)
