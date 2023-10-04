@@ -170,7 +170,7 @@ sector_io(struct sbd_context *st, int sector, void *data, int rw)
 	struct timespec	timeout;
 	struct io_event event;
 	struct iocb	*ios[1] = { &st->io };
-	long		r;
+	int    r;
 
 	timeout.tv_sec  = timeout_io;
 	timeout.tv_nsec = 0;
@@ -195,8 +195,8 @@ sector_io(struct sbd_context *st, int sector, void *data, int rw)
 	if (r < 0 ) {
 		cl_log(LOG_ERR, "Failed to retrieve IO events (rw=%d)", rw);
 		return -1;
-	} else if (r < 1L) {
-		cl_log(LOG_INFO, "Cancelling IO request due to timeout (rw=%d, r=%ld)", rw, r);
+	} else if (r < 1) {
+		cl_log(LOG_INFO, "Cancelling IO request due to timeout (rw=%d, r=%d)", rw, r);
 		r = io_cancel(st->ioctx, ios[0], &event);
 		if (r) {
 			DBGLOG(LOG_INFO, "Could not cancel IO request (rw=%d)", rw);
@@ -204,8 +204,8 @@ sector_io(struct sbd_context *st, int sector, void *data, int rw)
 			 */
 		}
 		return -1;
-	} else if (r > 1L) {
-		cl_log(LOG_ERR, "More than one IO was returned (r=%ld)", r);
+	} else if (r > 1) {
+		cl_log(LOG_ERR, "More than one IO was returned (r=%d)", r);
 		return -1;
 	}
 
@@ -1018,7 +1018,7 @@ void open_any_device(struct servants_list_item *servants)
 			}
 		}
 		clock_gettime(CLOCK_MONOTONIC, &t_now);
-		t_wait = t_now.tv_sec - t_0.tv_sec;
+		t_wait = seconds_diff_timespec(&t_now, &t_0);
 		if (!hdr_cur) {
 			sleep(timeout_loop);
 		}
@@ -1049,7 +1049,7 @@ static int servant_check_timeout_inconsistent(struct sector_header_s *hdr)
 {
 	if (timeout_watchdog != hdr->timeout_watchdog) {
 		cl_log(LOG_WARNING, "watchdog timeout: %d versus %d on this device",
-				(int)timeout_watchdog, (int)hdr->timeout_watchdog);
+				timeout_watchdog, (int)hdr->timeout_watchdog);
 		return -1;
 	}
 	if (timeout_allocate != hdr->timeout_allocate) {
@@ -1077,8 +1077,8 @@ int servant_md(const char *diskname, int mode, const void* argp)
 	struct sector_header_s	*s_header = NULL;
 	int mbox;
 	int rc = 0;
-	time_t t0, t1, latency;
-	union sigval signal_value;
+	time_t t0, t1;
+	int latency;
 	sigset_t servant_masks;
 	struct sbd_context *st;
 	pid_t ppid;
@@ -1159,7 +1159,7 @@ int servant_md(const char *diskname, int mode, const void* argp)
 				/* Not a clean stop. Abort start-up */
 				cl_log(LOG_WARNING, "Found fencing message - aborting start-up. Manual intervention required!");
 				ppid = getppid();
-				sigqueue(ppid, SIG_EXITREQ, signal_value);
+				sigqueue_zero(ppid, SIG_EXITREQ);
 				rc = 0;
 				goto out;
 			}
@@ -1171,8 +1171,6 @@ int servant_md(const char *diskname, int mode, const void* argp)
 			goto out;
 		}
 	}
-
-	memset(&signal_value, 0, sizeof(signal_value));
 
 	while (1) {
 		struct sector_header_s	*s_header_retry = NULL;
@@ -1237,7 +1235,7 @@ int servant_md(const char *diskname, int mode, const void* argp)
 			case SBD_MSG_TEST:
 				memset(s_mbox, 0, sizeof(*s_mbox));
 				mbox_write(st, mbox, s_mbox);
-				sigqueue(ppid, SIG_TEST, signal_value);
+				sigqueue_zero(ppid, SIG_TEST);
 				break;
 			case SBD_MSG_RESET:
 				rc = EXIT_MD_SERVANT_REQUEST_RESET;
@@ -1246,7 +1244,7 @@ int servant_md(const char *diskname, int mode, const void* argp)
 				rc = EXIT_MD_SERVANT_REQUEST_SHUTOFF;
 				goto out;
 			case SBD_MSG_EXIT:
-				sigqueue(ppid, SIG_EXITREQ, signal_value);
+				sigqueue_zero(ppid, SIG_EXITREQ);
 				break;
 			case SBD_MSG_CRASHDUMP:
 				rc = EXIT_MD_SERVANT_REQUEST_CRASHDUMP;
@@ -1264,17 +1262,17 @@ int servant_md(const char *diskname, int mode, const void* argp)
 				break;
 			}
 		}
-		sigqueue(ppid, SIG_LIVENESS, signal_value);
+		sigqueue_zero(ppid, SIG_LIVENESS);
 
 		t1 = time(NULL);
-		latency = t1 - t0;
+		latency = seconds_diff_time_t(t1, t0);
 		if (timeout_watchdog_warn && (latency > timeout_watchdog_warn)) {
 			cl_log(LOG_WARNING,
 			       "Latency: %ds exceeded watchdog warning timeout %ds on disk %s",
-			       (int)latency, (int)timeout_watchdog_warn,
+			       latency, timeout_watchdog_warn,
 			       diskname);
 		} else if (debug) {
-			DBGLOG(LOG_DEBUG, "Latency: %ds on disk %s", (int)latency,
+			DBGLOG(LOG_DEBUG, "Latency: %ds on disk %s", latency,
 			       diskname);
 		}
 	}

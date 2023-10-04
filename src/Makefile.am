@@ -5,7 +5,7 @@ AM_CPPFLAGS =  -I$(includedir)/pacemaker  \
 
 sbin_PROGRAMS = sbd
 
-sbd_SOURCES = sbd-common.c sbd-inquisitor.c sbd-pacemaker.c sbd-cluster.c setproctitle.c sbd.h sbd.sysconfig
+sbd_SOURCES = sbd-common.c sbd-watchdog.c sbd-inquisitor.c sbd-pacemaker.c sbd-cluster.c setproctitle.c sbd.h sbd.sysconfig
 
 if SUPPORT_SHARED_DISK
 sbd_SOURCES += sbd-md.c

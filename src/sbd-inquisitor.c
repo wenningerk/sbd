@@ -190,11 +190,10 @@ int check_all_dead(void)
 {
 	struct servants_list_item *s;
 	int r = 0;
-	union sigval svalue;
 
 	for (s = servants_leader; s; s = s->next) {
 		if (s->pid != 0) {
-			r = sigqueue(s->pid, 0, svalue);
+			r = sigqueue_zero(s->pid, 0);
 			if (r == -1 && errno == ESRCH)
 				continue;
 			return 0;
@@ -206,10 +205,9 @@ int check_all_dead(void)
 void servant_start(struct servants_list_item *s)
 {
 	int r = 0;
-	union sigval svalue;
 
 	if (s->pid != 0) {
-		r = sigqueue(s->pid, 0, svalue);
+		r = sigqueue_zero(s->pid, 0);
 		if ((r != -1 || errno != ESRCH))
 			return;
 	}
@@ -251,11 +249,11 @@ void servants_start(void)
 void servants_kill(void)
 {
 	struct servants_list_item *s;
-	union sigval svalue;
 
 	for (s = servants_leader; s; s = s->next) {
-		if (s->pid != 0)
-			sigqueue(s->pid, SIGKILL, svalue);
+		if (s->pid != 0) {
+			sigqueue_zero(s->pid, SIGKILL);
+		}
 	}
 }
 
@@ -280,7 +278,6 @@ static inline void cleanup_servant_by_pid(pid_t pid)
 int inquisitor_decouple(void)
 {
 	pid_t ppid = getppid();
-	union sigval signal_value;
 
 	/* During start-up, we only arm the watchdog once we've got
 	 * quorum at least once. */
@@ -291,7 +288,7 @@ int inquisitor_decouple(void)
 	}
 
 	if (ppid > 1) {
-		sigqueue(ppid, SIG_LIVENESS, signal_value);
+		sigqueue_zero(ppid, SIG_LIVENESS);
 	}
 	return 0;
 }
@@ -492,7 +489,7 @@ void inquisitor_child(void)
 	int decoupled = 0;
 	int cluster_appeared = 0;
 	int pcmk_override = 0;
-	time_t latency;
+	int latency;
 	struct timespec t_last_tickle, t_now;
 	struct servants_list_item* s;
 
@@ -624,12 +621,12 @@ void inquisitor_child(void)
 
 		good_servants = 0;
 		for (s = servants_leader; s; s = s->next) {
-			int age = t_now.tv_sec - s->t_last.tv_sec;
+			int age = seconds_diff_timespec(&t_now, &(s->t_last));
 
 			if (!s->t_last.tv_sec)
 				continue;
 
-			if (age < (int)(timeout_io+timeout_loop)) {
+			if (age < timeout_io+timeout_loop) {
 				if (sbd_is_disk(s)) {
                                     good_servants++;
 				}
@@ -728,8 +725,8 @@ void inquisitor_child(void)
 
 		/* Note that this can actually be negative, since we set
 		 * last_tickle after we set now. */
-		latency = t_now.tv_sec - t_last_tickle.tv_sec;
-		if (timeout_watchdog && (latency > (int)timeout_watchdog)) {
+		latency = seconds_diff_timespec(&t_now, &t_last_tickle);
+		if (timeout_watchdog && (latency > timeout_watchdog)) {
 			if (!decoupled) {
 				/* We're still being watched by our
 				 * parent. We don't fence, but exit. */
@@ -748,10 +745,10 @@ void inquisitor_child(void)
 			}
 		}
 
-		if (timeout_watchdog_warn && (latency > (int)timeout_watchdog_warn)) {
+		if (timeout_watchdog_warn && (latency > timeout_watchdog_warn)) {
 			cl_log(LOG_WARNING,
 			       "Latency: No liveness for %ds exceeds watchdog warning timeout of %ds (healthy servants: %d)",
-			       (int)latency, (int)timeout_watchdog_warn, good_servants);
+			       latency, timeout_watchdog_warn, good_servants);
 
                         if (debug_mode && watchdog_use) {
                             /* In debug mode, trigger a reset before the watchdog can panic the machine */
@@ -760,7 +757,7 @@ void inquisitor_child(void)
 		}
 
 		for (s = servants_leader; s; s = s->next) {
-			int age = t_now.tv_sec - s->t_started.tv_sec;
+			int age = seconds_diff_timespec(&t_now, &(s->t_started));
 
 			if (age > servant_restart_interval) {
 				s->restarts = 0;
@@ -896,7 +893,7 @@ parse_device_line(const char *line)
     return found;
 }
 
-#define SBD_SOURCE_FILES "sbd-cluster.c,sbd-common.c,sbd-inquisitor.c,sbd-md.c,sbd-pacemaker.c,setproctitle.c"
+#define SBD_SOURCE_FILES "sbd-cluster.c,sbd-common.c,sbd-inquisitor.c,sbd-md.c,sbd-pacemaker.c,sbd-watchdog.c,setproctitle.c"
 
 static void
 sbd_log_filter_ctl(const char *files, uint8_t priority)
@@ -1113,7 +1110,7 @@ int main(int argc, char **argv, char **envp)
 		case 'C':
 			timeout_watchdog_crashdump = sanitized_num_optarg;
 			cl_log(LOG_INFO, "Setting crashdump watchdog timeout to %d",
-					(int)timeout_watchdog_crashdump);
+					timeout_watchdog_crashdump);
 			break;
 		case '1':
 			timeout_watchdog = sanitized_num_optarg;
@@ -1131,7 +1128,7 @@ int main(int argc, char **argv, char **envp)
 			timeout_watchdog_warn = sanitized_num_optarg;
 			do_calculate_timeout_watchdog_warn = false;
 			cl_log(LOG_INFO, "Setting latency warning to %d",
-					(int)timeout_watchdog_warn);
+					timeout_watchdog_warn);
 			break;
 		case 't':
 			servant_restart_interval = sanitized_num_optarg;
