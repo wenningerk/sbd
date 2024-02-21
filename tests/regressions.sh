@@ -364,9 +364,11 @@ echo "SBD_TRANSLATE_AIO = \"${SBD_TRANSLATE_AIO}"\"
 
 sbd_setup
 
+MOUNTPOINT=$((mount|grep ${SBD_IMGPATH} || echo unknown)|cut -f1 -d" ")
 _ok test "${WATCHDOG_TIMEOUT}" -eq "${WATCHDOG_TIMEOUT}"
 _ok test "${MSGWAIT_TIMEOUT}" -eq "${MSGWAIT_TIMEOUT}"
 echo "running sbd-tests with WATCHDOG_TIMEOUT=${WATCHDOG_TIMEOUT}s MSGWAIT_TIMEOUT=${MSGWAIT_TIMEOUT}s"
+echo "on randomly named images in SBD_IMGPATH=\"${SBD_IMGPATH}\" on ${MOUNTPOINT} filesystem"
 
 if [[ "${SBD_PRELOAD}" != "" ]]; then
 	SBD_DAEMON_TESTS="watchdog stall_inquisitor wipe_slots1 wipe_slots2 message1 message2 message3 timeout_action1 timeout_action2"
