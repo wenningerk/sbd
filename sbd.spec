@@ -176,6 +176,9 @@ rm -rf %{buildroot}
 %{_libdir}/libsbdtestbed*
 
 %changelog
+* Sun Jun 2 2024 <klaus.wenninger@aon.at> - 1.5.2-99.0.7a3cd78b.git
+- remove commented setup-macro (applied in f41)
+
 * Thu Jan 5 2023 <klaus.wenninger@aon.at> - 1.5.2-99.0.8ec8e011.git
 - fail startup if pacemaker integration is disabled while
   SBD_SYNC_RESOURCE_STARTUP is conflicting (+ hint to overcome)
