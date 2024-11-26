@@ -988,9 +988,7 @@ int main(int argc, char **argv, char **envp)
 
         value = get_env_option("SBD_DELAY_START");
         if(value) {
-            delay_start = crm_is_true(value);
-
-            if (!delay_start) {
+            if (crm_str_to_boolean(value, (int *) &delay_start) != 1) {
                 delay = crm_get_msec(value) / 1000;
                 if (delay > 0) {
                     delay_start = true;
