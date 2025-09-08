@@ -30,6 +30,7 @@
 #include <config.h>
 #include <crm_config.h>
 
+#include <crm/crm.h>
 #include <crm/cluster.h>
 #include <crm/common/mainloop.h>
 
