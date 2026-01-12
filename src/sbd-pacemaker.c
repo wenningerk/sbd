@@ -351,12 +351,9 @@ cib_connect(gboolean full)
 static void
 compute_status(pe_working_set_t * data_set)
 {
-    static int updates = 0;
     static int ever_had_quorum = FALSE;
 
     node_t *node = NULL;
-
-    updates++;
 
     if (data_set->dc_node == NULL) {
         set_servant_health(pcmk_health_transient, LOG_INFO, "We don't have a DC right now.");
