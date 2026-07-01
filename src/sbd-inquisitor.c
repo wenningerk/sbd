@@ -779,8 +779,6 @@ void inquisitor_child(void)
 			}
 		}
 	}
-	/* not reached */
-	exit(0);
 }
 
 int inquisitor(void)
